@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34622.214
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryMapper", "QueryMapper\QueryMapper.csproj", "{3C72AC88-929C-45AD-BD8B-5DC03191FECC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryMapper.Console", "QueryMapper.Console\QueryMapper.Console.csproj", "{92CCC91A-EC13-4995-BECE-EA4266309C0C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3C72AC88-929C-45AD-BD8B-5DC03191FECC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C72AC88-929C-45AD-BD8B-5DC03191FECC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C72AC88-929C-45AD-BD8B-5DC03191FECC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C72AC88-929C-45AD-BD8B-5DC03191FECC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0F70081F-5003-4ABD-93F0-86A609C1C84E}
+	EndGlobalSection
+EndGlobal
