@@ -6,8 +6,8 @@ namespace QueryMapper.Console
         public string Firstname { get; set; }
         public string Lastname { get; set; }
         public double? Age { get; set; }
-        //public List<Person> Friends { get; set; }
-        public List<Animal> Animals { get; set; }
+        public List<Animal> Animals;
+        public Animal Pet;
     }
 
     public class PersonDTO
@@ -15,9 +15,9 @@ namespace QueryMapper.Console
         public string Firstname { get; set; }
         public string Lastname { get; set; }
         public int Age { get; set; }
-        //public List<PersonDTO> Friends { get; set; }
         public string Fullname { get; set; }
-        public List<AnimalDTO> Animals { get; set; }
+        public List<AnimalDTO> Animals;
+        public AnimalDTO Pet;
     }
 
     public class Animal

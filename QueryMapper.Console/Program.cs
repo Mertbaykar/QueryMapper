@@ -7,11 +7,16 @@ var person = new Person
 {
     Firstname = "Mert",
     Lastname = "Baykar",
-    Animals =
-    [
-        new Animal { Name = "Mert'in Kedisi" }
-    ],
-    Age = 26.3
+    //Animals =
+    //[
+    //    new Animal { Name = "Mert'in Kedisi" }
+    //],
+    Age = 26.3,
+    Pet = new Animal
+    {
+        Name = "Rengar",
+        Age = 23
+    }
 };
 
 var person2 = new Person
@@ -20,7 +25,7 @@ var person2 = new Person
     Lastname = "Baykar",
     Animals =
     [
-        new Animal { Name = "Berk'in Kedisi" }
+        new Animal { Name = "Pamuk" },null
     ],
     Age = 26.3
 };
@@ -32,5 +37,6 @@ Console.WriteLine(JsonSerializer.Serialize(value,
     new JsonSerializerOptions
     {
         WriteIndented = true,
+        IncludeFields = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     }));
