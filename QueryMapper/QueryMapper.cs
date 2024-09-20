@@ -55,9 +55,9 @@ namespace QueryMapper
 
         private MemberInitExpression CreateMapExpressionCore(Type sourceType, Type destType, Expression sourceParameter)
         {
-            var bindings = 
+            var bindings =
                  GetMembersOfType(destType)
-                .Select(destProp => CreateBinding(destProp, sourceParameter, sourceType))
+                .Select(destMember => CreateBinding(destMember, sourceParameter, sourceType))
                 .Where(binding => binding != null);
 
             return Expression.MemberInit(Expression.New(destType), bindings);
@@ -67,36 +67,35 @@ namespace QueryMapper
         {
 
             Expression sourceExpr;
-            Type? destMemberType = GetMemberType(destMember);
-            if (destMemberType == null)
-                return null;
+            Type destinationType = destMember.DeclaringType!;
+            MapperConfiguration? config;
+            MapperMatching? matching;
 
-            #region MapperConfiguration
+            config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destinationType);
+            matching = config?.Matchings.FirstOrDefault(x => x.DestinationMember == destMember.Name);
 
-            Type? destinationType = destMember.DeclaringType;
-            if (destinationType != null)
+            if (matching == null)
             {
-                MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destinationType);
-                if (config != null)
+                MemberInfo? sourceMember = GetPropertyOrField(sourceType, destMember.Name);
+                if (sourceMember == null || (sourceMember is PropertyInfo prop && !prop.CanRead))
+                    return null;
+
+                var sourceElementParameter = Expression.Parameter(sourceType, sourceType.Name);
+                var memberAccess = Expression.PropertyOrField(sourceElementParameter, destMember.Name);
+                sourceExpr = Expression.Lambda(memberAccess, sourceElementParameter);
+
+                matching = new MapperMatching(destMember.Name, sourceExpr);
+                if (config == null)
                 {
-                    MapperMatching? matching = config.Matchings.FirstOrDefault(x => x.DestinationMember == destMember.Name);
-                    if (matching != null)
-                    {
-                        var lambdaExpr = matching.SourceExpr as LambdaExpression;
-                        sourceExpr = new ParameterReplacer(lambdaExpr.Parameters[0], sourceParameter).Visit(lambdaExpr.Body);
-                        return CreateBindingCore(destMember, sourceExpr);
-                    }
+                    config = new MapperConfiguration(sourceType, destinationType);
+                    this._configurations.Add(config);
                 }
+                config.Matchings.Add(matching);
+                return CreateBinding(destMember, sourceParameter, sourceType);
             }
 
-            #endregion
-
-            MemberInfo? sourceMember = GetPropertyOrField(sourceType, destMember.Name);
-
-            if (sourceMember == null || (sourceMember is PropertyInfo prop && !prop.CanRead))
-                return null;
-
-            sourceExpr = Expression.PropertyOrField(sourceParameter, destMember.Name);
+            var lambdaExpr = matching.SourceExpr as LambdaExpression;
+            sourceExpr = new ParameterReplacer(lambdaExpr.Parameters[0], sourceParameter).Visit(lambdaExpr.Body);
             return CreateBindingCore(destMember, sourceExpr);
         }
 
@@ -166,12 +165,12 @@ namespace QueryMapper
         {
             if (destType == typeof(string))
             {
-                // Convert destinationPropExpr string using ToString
+                // Convert destinationMemberExpr string using ToString
                 return Expression.Call(sourceValue, nameof(object.ToString), Type.EmptyTypes);
             }
             else if (sourceValue.Type == typeof(string))
             {
-                // Convert sourceExpr string destinationPropExpr numeric type using Convert.ChangeType
+                // Convert sourceExpr string destinationMemberExpr numeric type using Convert.ChangeType
                 var convertMethod = typeof(Convert).GetMethod(nameof(Convert.ChangeType), new[] { typeof(object), typeof(Type) });
                 var convertCall = Expression.Call(convertMethod, sourceValue, Expression.Constant(destType));
                 return Expression.Convert(convertCall, destType);
@@ -198,7 +197,7 @@ namespace QueryMapper
 
         private MemberInfo[] GetMembersOfType(Type type)
         {
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(x=> x.CanWrite).OfType<MemberInfo>();
+            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(x => x.CanWrite).OfType<MemberInfo>();
             var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance).OfType<MemberInfo>();
             return props.Concat(fields).ToArray();
         }
@@ -235,13 +234,13 @@ namespace QueryMapper
 
                 if (destMemberType.IsArray)
                 {
-                    // Convert destinationPropExpr array
+                    // Convert destinationMemberExpr array
                     var toArrayMethod = typeof(Enumerable).GetMethod("ToArray").MakeGenericMethod(destElementType);
                     convertedCollection = Expression.Call(toArrayMethod, selectExpression);
                 }
                 else if (typeof(ICollection<>).MakeGenericType(destElementType).IsAssignableFrom(destMemberType))
                 {
-                    // Convert destinationPropExpr ICollection
+                    // Convert destinationMemberExpr ICollection
                     var toListMethod = typeof(Enumerable).GetMethod("ToList").MakeGenericMethod(destElementType);
                     var toListCall = Expression.Call(toListMethod, selectExpression);
                     convertedCollection = Expression.Convert(toListCall, destMemberType);
@@ -262,24 +261,62 @@ namespace QueryMapper
             // Parametre olarak gelen sourceExpr null olabilir, bunu kontrol edelim
             var sourceIsNull = Expression.Equal(sourceExpr, Expression.Constant(null, sourceExpr.Type));
 
+            // Null kontrolü ve boş IEnumerable<T> döndürme işlemi
+            var emptyEnumerableMethod = typeof(Enumerable).GetMethod(nameof(Enumerable.Empty))
+                .MakeGenericMethod(destElementType);
+            var emptyEnumerable = Expression.Call(emptyEnumerableMethod);
+
+            // Eğer sourceExpr null ise boş IEnumerable<T> döndürelim
+            var conditionExpr = Expression.Condition(
+                sourceIsNull,
+                emptyEnumerable,  // Null durumda boş IEnumerable<T> döndür
+                CreateSelectCall(sourceExpr, sourceElementType, destElementType) // Aksi halde Where + Select işlemi
+            );
+
+            return conditionExpr;
+        }
+
+        private Expression CreateSelectCall(Expression sourceExpr, Type sourceElementType, Type destElementType)
+        {
             // Koleksiyonun her bir öğesi için map işlemi
             var sourceElementParameter = Expression.Parameter(sourceElementType, sourceElementType.Name);
 
+            var elementIsNotNull = Expression.NotEqual(sourceElementParameter, Expression.Constant(null, sourceElementType));
+
+            // Null olan elemanları elemek için Where filtresi ekliyoruz
+            var whereLambda = Expression.Lambda(elementIsNotNull, sourceElementParameter);
+
+            var whereMethod = typeof(Enumerable).GetMethods()
+                .Where(m => m.Name == "Where" && m.GetParameters().Length == 2)
+                .Where(m =>
+                {
+                    var parameters = m.GetParameters();
+
+                    // İlk parametre IEnumerable<TSource> mi?
+                    var firstParam = parameters[0].ParameterType;
+                    if (!firstParam.IsGenericType || firstParam.GetGenericTypeDefinition() != typeof(IEnumerable<>))
+                        return false;
+
+                    // İkinci parametre Func<TSource, bool> mi?
+                    var secondParam = parameters[1].ParameterType;
+                    if (!secondParam.IsGenericType || secondParam.GetGenericTypeDefinition() != typeof(Func<,>))
+                        return false;
+
+                    var funcArgs = secondParam.GetGenericArguments();
+
+                    // Func<TSource, bool> olduğuna emin olalım
+                    return funcArgs.Length == 2 && funcArgs[0] == firstParam.GetGenericArguments()[0] && funcArgs[1] == typeof(bool);
+                })
+                .Single()
+                .MakeGenericMethod(sourceElementType);
+
+            var whereCall = Expression.Call(whereMethod, sourceExpr, whereLambda);
+
+            // Mapping expression
             var mapExpression = CreateMapExpression(sourceElementType, destElementType);
             var selectBody = Expression.Invoke(mapExpression, sourceElementParameter);
+            var selectLambda = Expression.Lambda(selectBody, sourceElementParameter);
 
-            // Boş değerler için kontrol ekle: Eğer öğe null ise null döndürelim, değilse map işlemi yapalım
-            var elementIsNull = Expression.Equal(sourceElementParameter, Expression.Constant(null, sourceElementType));
-            var mapOrNull = Expression.Condition(
-                elementIsNull,
-                Expression.Constant(null, destElementType), // Eğer null ise null olarak bırak
-                selectBody                                 // Değilse map işlemi yap
-            );
-
-            // Lambda expression: Animal => (Animal == null ? null : new AnimalDTO())
-            var selectLambda = Expression.Lambda(mapOrNull, sourceElementParameter);
-
-            // Enumerable.Select methodunu bul ve generik hale getir
             var selectMethod = typeof(Enumerable).GetMethods()
                 .Where(m =>
                 {
@@ -292,22 +329,9 @@ namespace QueryMapper
                 .Single()
                 .MakeGenericMethod(sourceElementType, destElementType);
 
-            // select işlemi
-            var selectCall = Expression.Call(selectMethod, sourceExpr, selectLambda);
-
-            // Empty IEnumerable<T> oluşturma: Enumerable.Empty<T>()
-            var emptyEnumerableMethod = typeof(Enumerable).GetMethod(nameof(Enumerable.Empty))
-                .MakeGenericMethod(destElementType);
-            var emptyEnumerable = Expression.Call(emptyEnumerableMethod);
-
-            // Null kontrolü ve condition: Eğer sourceExpr null ise boş IEnumerable<T> döndürelim
-            var conditionExpr = Expression.Condition(
-                sourceIsNull,
-                emptyEnumerable,  // null durumda boş IEnumerable<T> döndür
-                selectCall        // değilse Select işlemi
-            );
-
-            return conditionExpr;
+            // Select işlemi
+            var selectCall = Expression.Call(selectMethod, whereCall, selectLambda);
+            return selectCall;
         }
 
         private bool IsComplexType(Type type)
@@ -405,21 +429,21 @@ namespace QueryMapper
 
         internal List<MapperMatching> Matchings { get; set; } = new();
 
-        public void Match(Expression<Func<TSource, object>> sourceExpr, Expression<Func<TDestination, object>> destinationPropExpr)
+        public void Match(Expression<Func<TSource, object>> sourceExpr, Expression<Func<TDestination, object>> destinationMemberExpr)
         {
-            if (destinationPropExpr.Body is MemberExpression destinationMemberExpr)
+            if (destinationMemberExpr.Body is MemberExpression destinationMember)
             {
-                if (destinationMemberExpr.Member.MemberType == MemberTypes.Property || destinationMemberExpr.Member.MemberType == MemberTypes.Field)
+                if (destinationMember.Member.MemberType == MemberTypes.Property || destinationMember.Member.MemberType == MemberTypes.Field)
                 {
-                    Matchings.RemoveAll(x => x.DestinationMember == destinationMemberExpr.Member.Name);
-                    var instance = new MapperMatching(destinationMemberExpr.Member.Name, sourceExpr);
+                    Matchings.RemoveAll(x => x.DestinationMember == destinationMember.Member.Name);
+                    var instance = new MapperMatching(destinationMember.Member.Name, sourceExpr);
                     Matchings.Add(instance);
                     return;
                 }
 
                 throw new Exception($"Ensure you are using properties or fields while mapping to {typeof(TDestination).Name}");
             }
-            throw new Exception($"Ensure all TO expressions represent properties while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
+            throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
         }
 
         #region Dispose
@@ -435,12 +459,12 @@ namespace QueryMapper
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields destinationPropExpr null
+                // TODO: set large fields destinationMemberExpr null
                 disposedValue = true;
             }
         }
 
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code destinationPropExpr free unmanaged resources
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code destinationMemberExpr free unmanaged resources
         // ~MapperConfiguration()
         // {
         //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method

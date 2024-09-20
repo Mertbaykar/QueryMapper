@@ -1,6 +1,13 @@
 ﻿using QueryMapper.Console;
 using System.Text.Json;
 
+var serializerOptions = new JsonSerializerOptions
+{
+    WriteIndented = true,
+    IncludeFields = true,
+    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+};
+
 var mapper = new CustomMapper();
 
 var person = new Person
@@ -32,11 +39,8 @@ var person2 = new Person
 
 IQueryable<Person> people = new List<Person> { person, person2 }.AsQueryable();
 var value = mapper.Map<Person, PersonDTO>(people).ToList();
+var value2 = mapper.Map<Person, PersonDTO>(people).ToList();
 
-Console.WriteLine(JsonSerializer.Serialize(value,
-    new JsonSerializerOptions
-    {
-        WriteIndented = true,
-        IncludeFields = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    }));
+
+Console.WriteLine(JsonSerializer.Serialize(value, serializerOptions));
+Console.WriteLine(JsonSerializer.Serialize(value2, serializerOptions));
