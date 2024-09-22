@@ -1,4 +1,5 @@
-﻿using QueryMapper.Console;
+﻿using QueryMapper;
+using QueryMapper.Console;
 using System.Text.Json;
 
 var serializerOptions = new JsonSerializerOptions
@@ -25,6 +26,8 @@ var person = new Person
         Age = 23
     }
 };
+var mappedPerson = person.Map<PersonDTO>(mapper);
+Console.WriteLine(JsonSerializer.Serialize(mappedPerson, serializerOptions));
 
 var person2 = new Person
 {
@@ -37,10 +40,24 @@ var person2 = new Person
     Age = 26.3
 };
 
-IQueryable<Person> people = new List<Person> { person, person2 }.AsQueryable();
-var value = mapper.Map<Person, PersonDTO>(people).ToList();
-var value2 = mapper.Map<Person, PersonDTO>(people).ToList();
+var peopleList = new List<Person> { person, person2 };
 
+//var extensionPeople = peopleList.Map<PersonDTO>(mapper).ToList();
+//Console.WriteLine(JsonSerializer.Serialize(extensionPeople, serializerOptions));
 
-Console.WriteLine(JsonSerializer.Serialize(value, serializerOptions));
-Console.WriteLine(JsonSerializer.Serialize(value2, serializerOptions));
+IQueryable<Person> peopleQuery = peopleList.AsQueryable();
+
+//var extensionQueryPeople = peopleQuery.Map<PersonDTO>(mapper).ToList();
+//Console.WriteLine(JsonSerializer.Serialize(extensionQueryPeople, serializerOptions));
+
+//var value = mapper.Map<Person, PersonDTO>(peopleQuery).ToList();
+//Console.WriteLine(JsonSerializer.Serialize(value, serializerOptions));
+
+//var value2 = mapper.Map<Person, PersonDTO>(peopleQuery).ToList();
+//Console.WriteLine(JsonSerializer.Serialize(value2, serializerOptions));
+
+//var value3 = mapper.Map<Person, PersonDTO>(peopleList);
+//Console.WriteLine(JsonSerializer.Serialize(value3, serializerOptions));
+
+//var value4 = mapper.Map<Person, PersonDTO>(person);
+//Console.WriteLine(JsonSerializer.Serialize(value4, serializerOptions));

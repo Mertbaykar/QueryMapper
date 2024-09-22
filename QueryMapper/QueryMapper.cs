@@ -8,7 +8,7 @@ namespace QueryMapper
     using System.Linq.Expressions;
     using System.Reflection;
 
-    public abstract class QueryMapper
+    public abstract class QueryMapper : IQueryMapper
     {
 
         private readonly List<MapperConfiguration> _configurations = new();
@@ -32,10 +32,22 @@ namespace QueryMapper
             return this;
         }
 
-        public IQueryable<TDestination> Map<TSource, TDestination>(IQueryable<TSource> sourceQuery)
+        public IQueryable<TDestination> Map<TSource, TDestination>(IQueryable<TSource> sourceQuery) where TSource : class where TDestination : class
         {
             var selector = CreateMapExpression<TSource, TDestination>();
             return sourceQuery.Select(selector);
+        }
+
+        public IEnumerable<TDestination> Map<TSource, TDestination>(IEnumerable<TSource> source) where TSource : class where TDestination : class
+        {
+            var selector = CreateMapExpression<TSource, TDestination>().Compile();
+            return source.Select(selector);
+        }
+
+        public TDestination Map<TSource, TDestination>(TSource source) where TSource : class where TDestination : class
+        {
+            var selector = CreateMapExpression<TSource, TDestination>().Compile();
+            return selector(source);
         }
 
         private Expression<Func<TSource, TDestination>> CreateMapExpression<TSource, TDestination>()
