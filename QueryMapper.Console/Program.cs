@@ -42,16 +42,16 @@ var person2 = new Person
 
 var peopleList = new List<Person> { person, person2 };
 
-//var extensionPeople = peopleList.Map<PersonDTO>(mapper).ToList();
-//Console.WriteLine(JsonSerializer.Serialize(extensionPeople, serializerOptions));
+var extensionPeople = peopleList.Map<PersonDTO>(mapper).ToList();
+Console.WriteLine(JsonSerializer.Serialize(extensionPeople, serializerOptions));
 
 IQueryable<Person> peopleQuery = peopleList.AsQueryable();
 
-//var extensionQueryPeople = peopleQuery.Map<PersonDTO>(mapper).ToList();
-//Console.WriteLine(JsonSerializer.Serialize(extensionQueryPeople, serializerOptions));
+var extensionQueryPeople = peopleQuery.Map<PersonDTO>(mapper).ToList();
+Console.WriteLine(JsonSerializer.Serialize(extensionQueryPeople, serializerOptions));
 
-//var value = mapper.Map<Person, PersonDTO>(peopleQuery).ToList();
-//Console.WriteLine(JsonSerializer.Serialize(value, serializerOptions));
+var value = mapper.Map<Person, PersonDTO>(peopleQuery).ToList();
+Console.WriteLine(JsonSerializer.Serialize(value, serializerOptions));
 
 //var value2 = mapper.Map<Person, PersonDTO>(peopleQuery).ToList();
 //Console.WriteLine(JsonSerializer.Serialize(value2, serializerOptions));

@@ -65,17 +65,71 @@ namespace QueryMapper
             return Expression.Lambda(lambdaType, body, sourceParameter);
         }
 
-        private MemberInitExpression CreateMapExpressionCore(Type sourceType, Type destType, Expression sourceParameter)
+        private MemberInitExpression CreateMapExpressionCore(Type sourceType, Type destType, ParameterExpression sourceParameter)
         {
+            MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destType);
+
+            if (config != null && config.MemberInitExpression != null)
+            {
+                // mevcut parametreyi yenisiyle değiştir
+                var oldParameter = FindParameterInBindings(config.MemberInitExpression.Bindings)!;
+                var replacer = new ParameterReplacer(oldParameter, sourceParameter);
+                // binding'ler yeni parametre ile yenileniyor
+                var newBindings = config.MemberInitExpression.Bindings.Select(binding =>
+                {
+                    if (binding is MemberAssignment assignment)
+                    {
+                        var newExpression = replacer.Visit(assignment.Expression);
+                        return Expression.Bind(assignment.Member, newExpression);
+                    }
+                    return binding;
+                });
+
+                var newExpression = Expression.MemberInit(Expression.New(destType), newBindings);
+                return newExpression;
+            }
+
             var bindings =
                  GetMembersOfType(destType)
                 .Select(destMember => CreateBinding(destMember, sourceParameter, sourceType))
                 .Where(binding => binding != null);
 
-            return Expression.MemberInit(Expression.New(destType), bindings);
+            MemberInitExpression mapExpr = Expression.MemberInit(Expression.New(destType), bindings);
+
+            if (config == null)
+                config = this._configurations.First(x => x.SourceType == sourceType && x.DestinationType == destType);
+
+            config.SetMemberInitExpression(mapExpr);
+            return mapExpr;
         }
 
-        private MemberAssignment? CreateBinding(MemberInfo destMember, Expression sourceParameter, Type sourceType)
+        private ParameterExpression? FindParameterInBindings(IEnumerable<MemberBinding> bindings)
+        {
+            foreach (var binding in bindings)
+            {
+                if (binding is MemberAssignment assignment)
+                {
+                    if (assignment.Expression is ParameterExpression parameter)
+                        return parameter;
+
+                    var param = FindParameterInExpression(assignment.Expression);
+                    if (param != null)
+                        return param;
+                }
+            }
+            return null;
+        }
+
+        private ParameterExpression? FindParameterInExpression(Expression expr)
+        {
+            if (expr is ParameterExpression parameter)
+                return parameter;
+            if (expr is MemberExpression memberExpr)
+                return FindParameterInExpression(memberExpr.Expression);
+            return null;
+        }
+
+        private MemberAssignment? CreateBinding(MemberInfo destMember, ParameterExpression sourceParameter, Type sourceType)
         {
 
             Expression sourceExpr;
@@ -93,16 +147,15 @@ namespace QueryMapper
                     return null;
 
                 var memberAccess = Expression.PropertyOrField(sourceParameter, destMember.Name);
-                sourceExpr = Expression.Lambda(memberAccess, sourceParameter as ParameterExpression);
-                matching = new MapperMatching(destMember.Name, sourceExpr);
+                var sourceExprLambda = Expression.Lambda(memberAccess, sourceParameter);
+                sourceExpr = new ParameterReplacer(sourceExprLambda.Parameters[0], sourceParameter).Visit(sourceExprLambda.Body);
 
                 if (config == null)
                 {
                     config = new MapperConfiguration(sourceType, destinationType);
                     this._configurations.Add(config);
                 }
-                config.Matchings.Add(matching);
-                return CreateBinding(destMember, sourceParameter, sourceType);
+                return CreateBindingCore(destMember, sourceExpr);
             }
 
             var lambdaExpr = matching.SourceExpr as LambdaExpression;
@@ -430,7 +483,12 @@ namespace QueryMapper
         }
 
         internal List<MapperMatching> Matchings { get; set; } = new();
+        internal MemberInitExpression MemberInitExpression { get; private set; }
 
+        internal void SetMemberInitExpression(MemberInitExpression memberInitExpression)
+        {
+            MemberInitExpression = memberInitExpression;
+        }
     }
 
     public class MapperConfiguration<TSource, TDestination> : IDisposable where TSource : class
@@ -447,8 +505,8 @@ namespace QueryMapper
                 if (destinationMember.Member.MemberType == MemberTypes.Property || destinationMember.Member.MemberType == MemberTypes.Field)
                 {
                     Matchings.RemoveAll(x => x.DestinationMember == destinationMember.Member.Name);
-                    var instance = new MapperMatching(destinationMember.Member.Name, sourceExpr);
-                    Matchings.Add(instance);
+                    var matching = new MapperMatching(destinationMember.Member.Name, sourceExpr);
+                    Matchings.Add(matching);
                     return;
                 }
 
