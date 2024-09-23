@@ -92,11 +92,10 @@ namespace QueryMapper
                 if (sourceMember == null || (sourceMember is PropertyInfo prop && !prop.CanRead))
                     return null;
 
-                var sourceElementParameter = Expression.Parameter(sourceType, sourceType.Name);
-                var memberAccess = Expression.PropertyOrField(sourceElementParameter, destMember.Name);
-                sourceExpr = Expression.Lambda(memberAccess, sourceElementParameter);
-
+                var memberAccess = Expression.PropertyOrField(sourceParameter, destMember.Name);
+                sourceExpr = Expression.Lambda(memberAccess, sourceParameter as ParameterExpression);
                 matching = new MapperMatching(destMember.Name, sourceExpr);
+
                 if (config == null)
                 {
                     config = new MapperConfiguration(sourceType, destinationType);
@@ -502,8 +501,8 @@ namespace QueryMapper
             SourceExpr = sourceExpr;
         }
 
-        public string DestinationMember;
-        public Expression SourceExpr;
+        public readonly string DestinationMember;
+        public readonly Expression SourceExpr;
     }
 
     internal class ParameterReplacer : ExpressionVisitor
