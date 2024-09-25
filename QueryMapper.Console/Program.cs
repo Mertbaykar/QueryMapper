@@ -23,7 +23,7 @@ var person = new Person
     Pet = new Animal
     {
         Name = "Rengar",
-        Age = 23
+        age = 23
     }
 };
 var mappedPerson = person.Map<PersonDTO>(mapper);

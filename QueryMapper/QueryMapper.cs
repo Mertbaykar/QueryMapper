@@ -248,11 +248,17 @@ namespace QueryMapper
 
         private MemberInfo? GetPropertyOrField(Type type, string memberName)
         {
-            var prop = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public);
+            // Tüm public instance property'leri al
+            var prop = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(p => string.Equals(p.Name, memberName, StringComparison.OrdinalIgnoreCase));
+
             if (prop != null)
                 return prop;
 
-            var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public);
+            // Tüm public instance field'leri al
+            var field = type.GetFields(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(f => string.Equals(f.Name, memberName, StringComparison.OrdinalIgnoreCase));
+
             if (field != null)
                 return field;
 
