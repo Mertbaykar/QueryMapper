@@ -12,7 +12,23 @@ namespace QueryMapper.Console
 
     public class PersonDTO
     {
-        public string Firstname { get; set; }
+        private PersonDTO(string firstname)
+        {
+            Firstname = firstname;
+        }
+
+        private PersonDTO(string firstname, string lastname)
+        {
+            Firstname = firstname;
+            Lastname = lastname;
+        }
+
+        public static PersonDTO Create(string firstname, string lastname)
+        {
+            return new PersonDTO(firstname, lastname);
+        }
+
+        public string Firstname { get; private set; }
         public string Lastname { get; set; }
         public int Age { get; set; }
         public string Fullname { get; set; }

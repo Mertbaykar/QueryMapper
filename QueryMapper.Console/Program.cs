@@ -26,8 +26,8 @@ var person = new Person
         age = 23
     }
 };
-var mappedPerson = person.Map<PersonDTO>(mapper);
-Console.WriteLine(JsonSerializer.Serialize(mappedPerson, serializerOptions));
+//var mappedPerson = person.Map<PersonDTO>(mapper);
+//Console.WriteLine(JsonSerializer.Serialize(mappedPerson, serializerOptions));
 
 var person2 = new Person
 {
@@ -41,11 +41,11 @@ var person2 = new Person
 };
 
 var peopleList = new List<Person> { person, person2 };
-
-var extensionPeople = peopleList.Map<PersonDTO>(mapper).ToList();
-Console.WriteLine(JsonSerializer.Serialize(extensionPeople, serializerOptions));
-
 IQueryable<Person> peopleQuery = peopleList.AsQueryable();
+
+//var extensionPeople = peopleList.Map<PersonDTO>(mapper).ToList();
+//Console.WriteLine(JsonSerializer.Serialize(extensionPeople, serializerOptions));
+
 
 var extensionQueryPeople = peopleQuery.Map<PersonDTO>(mapper).ToList();
 Console.WriteLine(JsonSerializer.Serialize(extensionQueryPeople, serializerOptions));

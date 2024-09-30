@@ -17,8 +17,8 @@ namespace QueryMapper
             where TSource : class
             where TDestination : class
         {
-            // remove definition if previous exists
-            _configurations.RemoveAll(c => c.SourceType == typeof(TSource) && c.DestinationType == typeof(TDestination));
+            if (_configurations.Any(c => c.SourceType == typeof(TSource) && c.DestinationType == typeof(TDestination)))
+                throw new Exception($"Configuration for mapping from {typeof(TSource).Name} type to {typeof(TDestination).Name} is defined more than once. Check mapper code");
 
             var config = new MapperConfiguration(typeof(TSource), typeof(TDestination));
 
@@ -26,6 +26,8 @@ namespace QueryMapper
             {
                 configuration?.Invoke(configTemp);
                 configTemp.Matchings.ForEach(config.Matchings.Add);
+                if (configTemp.CtorExpression != null)
+                    config.SetCtorExpression(configTemp.CtorExpression);
                 _configurations.Add(config);
             }
 
@@ -68,6 +70,7 @@ namespace QueryMapper
         private MemberInitExpression CreateMapExpressionCore(Type sourceType, Type destType, ParameterExpression sourceParameter)
         {
             MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destType);
+            MemberInitExpression memberInitExpression;
 
             if (config != null && config.MemberInitExpression != null)
             {
@@ -79,28 +82,74 @@ namespace QueryMapper
                 {
                     if (binding is MemberAssignment assignment)
                     {
-                        var newExpression = replacer.Visit(assignment.Expression);
-                        return Expression.Bind(assignment.Member, newExpression);
+                        var assignmentExpression = replacer.Visit(assignment.Expression);
+                        return Expression.Bind(assignment.Member, assignmentExpression);
                     }
                     return binding;
                 });
 
-                var newExpression = Expression.MemberInit(Expression.New(destType), newBindings);
-                return newExpression;
+                var newExp = replacer.Visit(config.MemberInitExpression.NewExpression) as NewExpression;
+                memberInitExpression = config.MemberInitExpression.Update(newExp!, newBindings);
+                return memberInitExpression;
             }
 
             var bindings =
-                 GetMembersOfType(destType)
+                 GetMembersWriteable(destType)
                 .Select(destMember => CreateBinding(destMember, sourceParameter, sourceType))
                 .Where(binding => binding != null);
 
-            MemberInitExpression mapExpr = Expression.MemberInit(Expression.New(destType), bindings);
+            var ctorExp = CreateConstructorExpression(sourceType, destType, sourceParameter);
+            memberInitExpression = Expression.MemberInit(ctorExp, bindings);
 
             if (config == null)
                 config = this._configurations.First(x => x.SourceType == sourceType && x.DestinationType == destType);
 
-            config.SetMemberInitExpression(mapExpr);
-            return mapExpr;
+            config.SetMemberInitExpression(memberInitExpression);
+            return memberInitExpression;
+        }
+
+        private NewExpression CreateConstructorExpression(Type sourceType, Type destType, ParameterExpression sourceParameter)
+        {
+            MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destType);
+            if (config?.CtorExpression != null)
+            {
+                var newArguments = config.CtorExpression.Arguments
+                    .Select(arg => new ParameterReplacer(ExtractParameterExpression(arg)!, sourceParameter).Visit(arg));
+                return Expression.New(config.CtorExpression.Constructor!, newArguments);
+            }
+
+            ConstructorInfo? constructor;
+            constructor = destType.GetConstructors(BindingFlags.Public | BindingFlags.Instance).FirstOrDefault();
+            if (constructor == null)
+                constructor = destType.GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).FirstOrDefault();
+
+            Expression sourceExpr;
+            Expression? ctorArgExp;
+
+            List<Expression> arguments = new();
+
+            foreach (var parameter in constructor!.GetParameters())
+            {
+
+                MemberInfo? sourceMember = GetPropertyOrField(sourceType, parameter.Name);
+                if (sourceMember == null || (sourceMember is PropertyInfo prop && !prop.CanRead))
+                    throw new Exception($"{parameter.Name} parameter of constructor has no match or can't be read at {sourceType.Name} while mapping {sourceType.Name} to {destType.Name}. Consider using a different constructor or configure via mapper");
+
+                MemberInfo? destMember = GetPropertyOrField(destType, parameter.Name);
+                if (destMember == null || (destMember is PropertyInfo destProp && !destProp.CanRead))
+                    throw new Exception($"{parameter.Name} parameter of constructor has no match or can't be read at {destType.Name} while mapping {sourceType.Name} to {destType.Name}. Consider using a different constructor or configure via mapper");
+
+                var memberAccess = Expression.PropertyOrField(sourceParameter, parameter.Name);
+                var sourceExprLambda = Expression.Lambda(memberAccess, sourceParameter);
+                sourceExpr = new ParameterReplacer(sourceExprLambda.Parameters[0], sourceParameter).Visit(sourceExprLambda.Body);
+                ctorArgExp = CreateExpressionForMember(destMember, sourceExpr);
+                if (ctorArgExp == null)
+                    ctorArgExp = Expression.Constant(null, sourceExpr.Type);
+
+                arguments.Add(ctorArgExp);
+            }
+
+            return Expression.New(constructor, arguments);
         }
 
         private ParameterExpression? FindParameterInBindings(IEnumerable<MemberBinding> bindings)
@@ -109,23 +158,11 @@ namespace QueryMapper
             {
                 if (binding is MemberAssignment assignment)
                 {
-                    if (assignment.Expression is ParameterExpression parameter)
-                        return parameter;
-
-                    var param = FindParameterInExpression(assignment.Expression);
+                    var param = ExtractParameterExpression(assignment.Expression);
                     if (param != null)
                         return param;
                 }
             }
-            return null;
-        }
-
-        private ParameterExpression? FindParameterInExpression(Expression expr)
-        {
-            if (expr is ParameterExpression parameter)
-                return parameter;
-            if (expr is MemberExpression memberExpr)
-                return FindParameterInExpression(memberExpr.Expression);
             return null;
         }
 
@@ -165,12 +202,29 @@ namespace QueryMapper
 
         private MemberAssignment? CreateBindingCore(MemberInfo destMember, Expression sourceExpr)
         {
+            Expression? expr = CreateExpressionForMember(destMember, sourceExpr);
+            if (expr == null)
+                return null;
+            return Expression.Bind(destMember, expr);
+        }
+
+        private Expression? CreateExpressionForMember(MemberInfo destMember, Expression sourceExpr)
+        {
 
             Type? destMemberType = GetMemberType(destMember)!;
             Type sourceExprType = GetReturnTypeFromExpression(sourceExpr);
+
+            if (sourceExprType == destMemberType)
+                return sourceExpr;
+
+            Expression? resultExpr;
+
             // Handle collection members (IEnumerable)
             if (typeof(IEnumerable).IsAssignableFrom(destMemberType) && destMemberType != typeof(string))
-                return CreateCollectionBinding(destMember, sourceExpr);
+            {
+                resultExpr = CreateCollectionExpression(destMember, sourceExpr);
+                return resultExpr;
+            }
 
             // Handle complex types (e.g., nested classes)
             if (IsComplexType(destMemberType) && IsComplexType(sourceExprType))
@@ -181,19 +235,16 @@ namespace QueryMapper
                 var mapExpression = Expression.Invoke(nestedMapExpr, sourceExpr);
 
                 // Nullsa default value atanması (null olmalı)
-                var conditionExpr = Expression.Condition(
+                resultExpr = Expression.Condition(
                     sourceIsNull,
                     Expression.Default(destMemberType),
                     mapExpression
                 );
 
-                return Expression.Bind(destMember, conditionExpr);
+                return resultExpr;
             }
 
             #region Primitive types (int, string, double, boolean etc)
-
-            if (sourceExprType == destMemberType)
-                return Expression.Bind(destMember, sourceExpr);
 
             if (IsPrimitiveOrString(sourceExprType, destMemberType))
             {
@@ -201,23 +252,21 @@ namespace QueryMapper
                 var sourceTypeChecked = Nullable.GetUnderlyingType(sourceExprType) ?? sourceExprType;
                 var destType = Nullable.GetUnderlyingType(destMemberType) ?? destMemberType;
 
-                Expression convertedValue;
-
                 if (sourceExprType != sourceTypeChecked)
                 {
                     var hasValue = Expression.Property(sourceExpr, "HasValue");
                     var getValueOrDefault = Expression.Property(sourceExpr, "Value");
                     var valueConversion = ConvertPrimitive(getValueOrDefault, destType);
-                    convertedValue = Expression.Condition(
+                    resultExpr = Expression.Condition(
                         hasValue,
                         valueConversion,
                         Expression.Default(destMemberType)
                     );
                 }
                 else
-                    convertedValue = ConvertPrimitive(sourceExpr, destType);
+                    resultExpr = ConvertPrimitive(sourceExpr, destType);
 
-                return Expression.Bind(destMember, convertedValue);
+                return resultExpr;
             }
 
             #endregion
@@ -248,14 +297,12 @@ namespace QueryMapper
 
         private MemberInfo? GetPropertyOrField(Type type, string memberName)
         {
-            // Tüm public instance property'leri al
             var prop = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .FirstOrDefault(p => string.Equals(p.Name, memberName, StringComparison.OrdinalIgnoreCase));
 
             if (prop != null)
                 return prop;
 
-            // Tüm public instance field'leri al
             var field = type.GetFields(BindingFlags.Instance | BindingFlags.Public)
                 .FirstOrDefault(f => string.Equals(f.Name, memberName, StringComparison.OrdinalIgnoreCase));
 
@@ -265,7 +312,7 @@ namespace QueryMapper
             return null;
         }
 
-        private MemberInfo[] GetMembersOfType(Type type)
+        private MemberInfo[] GetMembersWriteable(Type type)
         {
             var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(x => x.CanWrite).OfType<MemberInfo>();
             var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance).OfType<MemberInfo>();
@@ -282,7 +329,48 @@ namespace QueryMapper
                 return null;
         }
 
+        private ParameterExpression? ExtractParameterExpression(Expression expression)
+        {
+            // LambdaExpression ise, onun parametresine ulaşabiliriz
+            if (expression is LambdaExpression lambdaExpression)
+                return lambdaExpression.Parameters.FirstOrDefault();
+
+            // MemberExpression içinde bir ParameterExpression olabilir (örneğin x.FirstName)
+            if (expression is MemberExpression memberExpression)
+                return ExtractParameterExpression(memberExpression.Expression);
+
+            // MethodCallExpression'da metodun objesini inceleyebiliriz
+            if (expression is MethodCallExpression methodCallExpression)
+                return ExtractParameterExpression(methodCallExpression.Object);
+
+            // BinaryExpression'da hem sol hem de sağ tarafı kontrol edebiliriz
+            if (expression is BinaryExpression binaryExpression)
+            {
+                var leftParam = ExtractParameterExpression(binaryExpression.Left);
+                if (leftParam != null)
+                    return leftParam;
+                return ExtractParameterExpression(binaryExpression.Right);
+            }
+
+            // Eğer doğrudan bir ParameterExpression ise, parametreyi döndür
+            if (expression is ParameterExpression parameterExpression)
+                return parameterExpression;
+
+            // Eğer bir UnaryExpression (örneğin cast edilen bir ifade) varsa onu da inceleyelim
+            if (expression is UnaryExpression unaryExpression)
+                return ExtractParameterExpression(unaryExpression.Operand);
+            return null;
+        }
+
         private MemberAssignment? CreateCollectionBinding(MemberInfo destMember, Expression sourceExpr)
+        {
+            var expr = CreateCollectionExpression(destMember, sourceExpr);
+            if (expr == null)
+                return null;
+            return Expression.Bind(destMember, expr);
+        }
+
+        private Expression? CreateCollectionExpression(MemberInfo destMember, Expression sourceExpr)
         {
             var type = GetReturnTypeFromExpression(sourceExpr);
             Type? destMemberType = GetMemberType(destMember);
@@ -320,7 +408,7 @@ namespace QueryMapper
                 else
                     convertedCollection = selectExpression;
 
-                return Expression.Bind(destMember, convertedCollection);
+                return convertedCollection;
             }
 
             return null;
@@ -489,11 +577,17 @@ namespace QueryMapper
         }
 
         internal List<MapperMatching> Matchings { get; set; } = new();
-        internal MemberInitExpression MemberInitExpression { get; private set; }
+        internal MemberInitExpression? MemberInitExpression { get; private set; }
+        internal NewExpression? CtorExpression { get; private set; }
 
         internal void SetMemberInitExpression(MemberInitExpression memberInitExpression)
         {
             MemberInitExpression = memberInitExpression;
+        }
+
+        internal void SetCtorExpression(NewExpression ctorExpression)
+        {
+            CtorExpression = ctorExpression;
         }
     }
 
@@ -503,8 +597,9 @@ namespace QueryMapper
         private bool disposedValue;
 
         internal List<MapperMatching> Matchings { get; set; } = new();
+        internal NewExpression? CtorExpression { get; private set; }
 
-        public void Match(Expression<Func<TSource, object>> sourceExpr, Expression<Func<TDestination, object>> destinationMemberExpr)
+        public MapperConfiguration<TSource, TDestination> Match(Expression<Func<TSource, object>> sourceExpr, Expression<Func<TDestination, object>> destinationMemberExpr)
         {
             if (destinationMemberExpr.Body is MemberExpression destinationMember)
             {
@@ -513,12 +608,43 @@ namespace QueryMapper
                     Matchings.RemoveAll(x => x.DestinationMember == destinationMember.Member.Name);
                     var matching = new MapperMatching(destinationMember.Member.Name, sourceExpr);
                     Matchings.Add(matching);
-                    return;
+                    return this;
                 }
 
                 throw new Exception($"Ensure you are using properties or fields while mapping to {typeof(TDestination).Name}");
             }
             throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
+        }
+
+        public MapperConfiguration<TSource, TDestination> UsingConstructor(Expression<Func<TSource, TDestination>> ctorExp)
+        {
+            var newExp = GetNewExpression(ctorExp.Body);
+            if (newExp != null)
+            {
+                CtorExpression = newExp;
+                return this;
+            }
+
+            throw new InvalidOperationException($"{UsingConstructor} method should return a constructor");
+        }
+
+        private NewExpression? GetNewExpression(Expression expression)
+        {
+            if (expression is NewExpression newExp)
+                return newExp;
+            if (expression is MethodCallExpression methodCallExpression)
+            {
+                // Metot çağrısının dönüş türünü al
+                Type returnType = methodCallExpression.Method.ReturnType;
+
+                // Eğer metot dönüş türü bir NewExpression döndürüyorsa
+                var constructorInfo = returnType.GetConstructor(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic, methodCallExpression.Method.GetParameters().Select(p => p.ParameterType).ToArray());
+
+                if (constructorInfo != null)
+                    return Expression.New(constructorInfo, methodCallExpression.Arguments);
+            }
+
+            return null;
         }
 
         #region Dispose
@@ -529,17 +655,17 @@ namespace QueryMapper
             {
                 if (disposing)
                 {
-                    // TODO: dispose managed state (managed objects)
+                    // dispose managed state (managed objects)
                     Matchings.Clear();
                 }
 
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields destinationMemberExpr null
+                // free unmanaged resources (unmanaged objects) and override finalizer
+                // set large fields destinationMemberExpr null
                 disposedValue = true;
             }
         }
 
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code destinationMemberExpr free unmanaged resources
+        // //  override finalizer only if 'Dispose(bool disposing)' has code destinationMemberExpr free unmanaged resources
         // ~MapperConfiguration()
         // {
         //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method

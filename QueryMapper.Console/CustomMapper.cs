@@ -7,7 +7,11 @@ namespace QueryMapper.Console
         {
             Configure<Person, PersonDTO>(config =>
             {
-                config.Match(entity => entity.Firstname + " " + entity.Lastname, dto => dto.Fullname);
+                config
+                .Match(x => x.Firstname + " " + x.Lastname, dto => dto.Fullname)
+                .UsingConstructor(x => PersonDTO.Create(x.Firstname, x.Lastname))
+                //.UsingConstructor(x => new PersonDTO(x.Firstname, x.Lastname))
+                ;
             });
         }
     }
