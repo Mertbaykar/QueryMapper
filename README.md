@@ -55,7 +55,7 @@ Your custom mapper must be a subclass of QueryMapper. It is a MUST since QueryMa
 
 You see we have "**Configure**" method. It has a couple methods to extend mapping abilities:  
 
-**UsingConstructor**: Allows you to use the constructor you wish. If destination class has multiple constructors and you want to pick a certain one, this method would be useful. If you don't use and map straight, first constructor found will be used. **Private constructors are not prioritized while picking up constructor automatically.**  
+**UsingConstructor**: Allows you to use the constructor you wish. If destination class has multiple constructors and you want to pick a certain one, this method would be useful. If you don't use and map straight, first constructor found will be used. **Private constructors are NOT prioritized while picking up constructor automatically.**  
 
 Lets say you have only one constructor and it has parameters. You don't need to use this method if parameter names are matched to related property/field. Imagine you have only this constructor:
 ```csharp
