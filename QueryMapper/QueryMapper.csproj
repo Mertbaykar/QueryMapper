@@ -4,7 +4,29 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Title>EFQueryMapper</Title>
+    <Authors>MertBaykar</Authors>
+    <Company />
+    <Description>This library empowers seamless type mapping, extending its capabilities to include Entity Framework queries.</Description>
+    <PackageProjectUrl>https://github.com/Mertbaykar/QueryMapper</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Mertbaykar/QueryMapper</RepositoryUrl>
+    <PackageTags>querymapper;mapper;entityframeworkcore;efcore;querymapping;typemapping;objectmapping</PackageTags>
+    <IncludeSymbols>False</IncludeSymbols>
+    <PackageId>EFQueryMapper</PackageId>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />

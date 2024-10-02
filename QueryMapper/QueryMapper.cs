@@ -416,18 +416,16 @@ namespace QueryMapper
 
         private Expression CreateSelectExpression(Type sourceElementType, Type destElementType, Expression sourceExpr)
         {
-            // Parametre olarak gelen sourceExpr null olabilir, bunu kontrol edelim
-            var sourceIsNull = Expression.Equal(sourceExpr, Expression.Constant(null, sourceExpr.Type));
+            // sourceExpr null ise null döndürmek için null kontrolü yapıyoruz
+            var sourceIsNull = Expression.ReferenceEqual(sourceExpr, Expression.Constant(null));
 
-            // Null kontrolü ve boş IEnumerable<T> döndürme işlemi
-            var emptyEnumerableMethod = typeof(Enumerable).GetMethod(nameof(Enumerable.Empty))
-                .MakeGenericMethod(destElementType);
-            var emptyEnumerable = Expression.Call(emptyEnumerableMethod);
+            // Null durumda null IEnumerable<T> döndür
+            var nullValue = Expression.Constant(null, typeof(IEnumerable<>).MakeGenericType(destElementType));
 
-            // Eğer sourceExpr null ise boş IEnumerable<T> döndürelim
+            // Eğer sourceExpr null ise null döndürelim
             var conditionExpr = Expression.Condition(
                 sourceIsNull,
-                emptyEnumerable,  // Null durumda boş IEnumerable<T> döndür
+                nullValue,  // Null durumda null döndür
                 CreateSelectCall(sourceExpr, sourceElementType, destElementType) // Aksi halde Where + Select işlemi
             );
 
@@ -599,8 +597,51 @@ namespace QueryMapper
         internal List<MapperMatching> Matchings { get; set; } = new();
         internal NewExpression? CtorExpression { get; private set; }
 
-        public MapperConfiguration<TSource, TDestination> Match(Expression<Func<TSource, object>> sourceExpr, Expression<Func<TDestination, object>> destinationMemberExpr)
+        //public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
+        //{
+        //    // sourceExpr'ı kontrol et
+        //    var sourceBody = sourceExpr.Body as UnaryExpression;
+        //    if (sourceBody != null && sourceBody.NodeType == ExpressionType.Convert)
+        //    {
+        //        sourceExpr = Expression.Lambda<Func<TSource, TSourceExpression>>(sourceBody.Operand, sourceExpr.Parameters);
+        //    }
+
+        //    // destinationMemberExpr'i kontrol et
+        //    var destinationBody = destinationMemberExpr.Body as UnaryExpression;
+        //    if (destinationBody != null && destinationBody.NodeType == ExpressionType.Convert)
+        //    {
+        //        destinationMemberExpr = Expression.Lambda<Func<TDestination, TDestinationMember>>(destinationBody.Operand, destinationMemberExpr.Parameters);
+        //    }
+
+        //    if (destinationMemberExpr.Body is MemberExpression destinationMember)
+        //    {
+        //        if (destinationMember.Member.MemberType == MemberTypes.Property || destinationMember.Member.MemberType == MemberTypes.Field)
+        //        {
+        //            Matchings.RemoveAll(x => x.DestinationMember == destinationMember.Member.Name);
+        //            var matching = new MapperMatching(destinationMember.Member.Name, sourceExpr);
+        //            Matchings.Add(matching);
+        //            return this;
+        //        }
+
+        //        throw new Exception($"Ensure you are using properties or fields while mapping to {typeof(TDestination).Name}");
+        //    }
+        //    throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
+        //}
+
+        public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
         {
+            // sourceExpr'ı kontrol et
+            if (sourceExpr.Body is UnaryExpression sourceBody && sourceBody.NodeType == ExpressionType.Convert)
+            {
+                sourceExpr = Expression.Lambda<Func<TSource, TSourceExpression>>(sourceBody.Operand, sourceExpr.Parameters);
+            }
+
+            // destinationMemberExpr'i kontrol et
+            if (destinationMemberExpr.Body is UnaryExpression destinationBody && destinationBody.NodeType == ExpressionType.Convert)
+            {
+                destinationMemberExpr = Expression.Lambda<Func<TDestination, TDestinationMember>>(destinationBody.Operand, destinationMemberExpr.Parameters);
+            }
+
             if (destinationMemberExpr.Body is MemberExpression destinationMember)
             {
                 if (destinationMember.Member.MemberType == MemberTypes.Property || destinationMember.Member.MemberType == MemberTypes.Field)
@@ -613,38 +654,21 @@ namespace QueryMapper
 
                 throw new Exception($"Ensure you are using properties or fields while mapping to {typeof(TDestination).Name}");
             }
+
             throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
         }
 
+
+
         public MapperConfiguration<TSource, TDestination> UsingConstructor(Expression<Func<TSource, TDestination>> ctorExp)
         {
-            var newExp = GetNewExpression(ctorExp.Body);
-            if (newExp != null)
+
+            if (ctorExp.Body is NewExpression newExp)
             {
                 CtorExpression = newExp;
                 return this;
             }
-
             throw new InvalidOperationException($"{UsingConstructor} method should return a constructor");
-        }
-
-        private NewExpression? GetNewExpression(Expression expression)
-        {
-            if (expression is NewExpression newExp)
-                return newExp;
-            if (expression is MethodCallExpression methodCallExpression)
-            {
-                // Metot çağrısının dönüş türünü al
-                Type returnType = methodCallExpression.Method.ReturnType;
-
-                // Eğer metot dönüş türü bir NewExpression döndürüyorsa
-                var constructorInfo = returnType.GetConstructor(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic, methodCallExpression.Method.GetParameters().Select(p => p.ParameterType).ToArray());
-
-                if (constructorInfo != null)
-                    return Expression.New(constructorInfo, methodCallExpression.Arguments);
-            }
-
-            return null;
         }
 
         #region Dispose

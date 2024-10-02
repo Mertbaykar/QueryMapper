@@ -17,7 +17,7 @@ namespace QueryMapper.Console
             Firstname = firstname;
         }
 
-        private PersonDTO(string firstname, string lastname)
+        public PersonDTO(string firstname, string lastname)
         {
             Firstname = firstname;
             Lastname = lastname;
@@ -29,7 +29,7 @@ namespace QueryMapper.Console
         }
 
         public string Firstname { get; private set; }
-        public string Lastname { get; set; }
+        public string Lastname { get; private set; }
         public int Age { get; set; }
         public string Fullname { get; set; }
         public List<AnimalDTO> Animals;
