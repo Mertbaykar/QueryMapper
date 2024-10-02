@@ -1,5 +1,5 @@
 ﻿using QueryMapper;
-using QueryMapper.Console;
+using QueryMapper.Examples.Core;
 using System.Text.Json;
 
 var serializerOptions = new JsonSerializerOptions
@@ -9,7 +9,7 @@ var serializerOptions = new JsonSerializerOptions
     Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 };
 
-var mapper = new CustomMapper();
+var mapper = new BookMapper();
 
 #region No EF Core
 

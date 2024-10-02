@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-namespace QueryMapper.Console
+namespace QueryMapper.Examples.Core
 {
 
     public class BookContext : DbContext

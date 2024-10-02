@@ -3,9 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34622.214
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryMapper", "QueryMapper\QueryMapper.csproj", "{3C72AC88-929C-45AD-BD8B-5DC03191FECC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QueryMapper", "QueryMapper\QueryMapper.csproj", "{3C72AC88-929C-45AD-BD8B-5DC03191FECC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryMapper.Console", "QueryMapper.Console\QueryMapper.Console.csproj", "{92CCC91A-EC13-4995-BECE-EA4266309C0C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QueryMapper.Console", "QueryMapper.Console\QueryMapper.Console.csproj", "{92CCC91A-EC13-4995-BECE-EA4266309C0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryMapper.Examples.Core", "QueryMapper.Example.API\QueryMapper.Examples.Core.csproj", "{EAC194C8-BD94-432C-97A4-529BC2CE9B71}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryMapper.Examples.API", "QueryMapper.Examples.API\QueryMapper.Examples.API.csproj", "{6C8B92C3-3B80-44D1-84B3-3B5E5C2B5386}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +25,14 @@ Global
 		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{92CCC91A-EC13-4995-BECE-EA4266309C0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EAC194C8-BD94-432C-97A4-529BC2CE9B71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EAC194C8-BD94-432C-97A4-529BC2CE9B71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EAC194C8-BD94-432C-97A4-529BC2CE9B71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EAC194C8-BD94-432C-97A4-529BC2CE9B71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C8B92C3-3B80-44D1-84B3-3B5E5C2B5386}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C8B92C3-3B80-44D1-84B3-3B5E5C2B5386}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C8B92C3-3B80-44D1-84B3-3B5E5C2B5386}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C8B92C3-3B80-44D1-84B3-3B5E5C2B5386}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

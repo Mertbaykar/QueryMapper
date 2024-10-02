@@ -597,37 +597,6 @@ namespace QueryMapper
         internal List<MapperMatching> Matchings { get; set; } = new();
         internal NewExpression? CtorExpression { get; private set; }
 
-        //public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
-        //{
-        //    // sourceExpr'ı kontrol et
-        //    var sourceBody = sourceExpr.Body as UnaryExpression;
-        //    if (sourceBody != null && sourceBody.NodeType == ExpressionType.Convert)
-        //    {
-        //        sourceExpr = Expression.Lambda<Func<TSource, TSourceExpression>>(sourceBody.Operand, sourceExpr.Parameters);
-        //    }
-
-        //    // destinationMemberExpr'i kontrol et
-        //    var destinationBody = destinationMemberExpr.Body as UnaryExpression;
-        //    if (destinationBody != null && destinationBody.NodeType == ExpressionType.Convert)
-        //    {
-        //        destinationMemberExpr = Expression.Lambda<Func<TDestination, TDestinationMember>>(destinationBody.Operand, destinationMemberExpr.Parameters);
-        //    }
-
-        //    if (destinationMemberExpr.Body is MemberExpression destinationMember)
-        //    {
-        //        if (destinationMember.Member.MemberType == MemberTypes.Property || destinationMember.Member.MemberType == MemberTypes.Field)
-        //        {
-        //            Matchings.RemoveAll(x => x.DestinationMember == destinationMember.Member.Name);
-        //            var matching = new MapperMatching(destinationMember.Member.Name, sourceExpr);
-        //            Matchings.Add(matching);
-        //            return this;
-        //        }
-
-        //        throw new Exception($"Ensure you are using properties or fields while mapping to {typeof(TDestination).Name}");
-        //    }
-        //    throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
-        //}
-
         public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
         {
             // sourceExpr'ı kontrol et
@@ -658,8 +627,6 @@ namespace QueryMapper
             throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
         }
 
-
-
         public MapperConfiguration<TSource, TDestination> UsingConstructor(Expression<Func<TSource, TDestination>> ctorExp)
         {
 
@@ -681,6 +648,7 @@ namespace QueryMapper
                 {
                     // dispose managed state (managed objects)
                     Matchings.Clear();
+                    CtorExpression = null;
                 }
 
                 // free unmanaged resources (unmanaged objects) and override finalizer

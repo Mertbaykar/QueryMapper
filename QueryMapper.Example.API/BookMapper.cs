@@ -1,9 +1,9 @@
 ﻿
-namespace QueryMapper.Console
+namespace QueryMapper.Examples.Core
 {
-    public class CustomMapper : QueryMapper
+    public class BookMapper : QueryMapper
     {
-        public CustomMapper()
+        public BookMapper()
         {
             Configure<Person, PersonDTO>(config =>
             {

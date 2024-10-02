@@ -1,0 +1,6 @@
+@QueryMapper.Examples.API_HostAddress = http://localhost:5029
+
+GET {{QueryMapper.Examples.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

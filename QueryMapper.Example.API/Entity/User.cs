@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
-namespace QueryMapper.Console
+namespace QueryMapper.Examples.Core
 {
     public class User : EntityBase
     {
@@ -19,8 +19,8 @@ namespace QueryMapper.Console
         public string Password { get; private set; }
 
         public int ShareId { get; private set; }
-        [NotMapped]
-        public NoteShareSetting ShareSetting => Enum.GetValues<NoteShareSetting>().First(x => (int)x == ShareId);
+        //[NotMapped]
+        //public NoteShareSetting ShareSetting => Enum.GetValues<NoteShareSetting>().First(x => (int)x == ShareId);
 
         public ICollection<Note> Notes { get; private set; } = new List<Note>();
         public ICollection<User> Friends { get; private set; } = new List<User>();

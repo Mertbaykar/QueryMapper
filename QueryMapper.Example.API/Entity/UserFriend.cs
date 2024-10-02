@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
-namespace QueryMapper.Console
+namespace QueryMapper.Examples.Core
 {
     [Table("FriendShip")]
     public class UserFriend
