@@ -6,15 +6,17 @@
     <Nullable>enable</Nullable>
     <Title>EFQueryMapper</Title>
     <Authors>MertBaykar</Authors>
-    <Company />
-    <Description>This library empowers seamless type mapping, extending its capabilities to include Entity Framework queries.</Description>
+    <Company> </Company>
+    <Description>This library empowers seamless type mapping, extending its capabilities to include Entity Framework queries. Map queries on the fly!</Description>
     <PackageProjectUrl>https://github.com/Mertbaykar/QueryMapper</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Mertbaykar/QueryMapper</RepositoryUrl>
-    <PackageTags>querymapper;mapper;entityframeworkcore;efcore;querymapping;typemapping;objectmapping</PackageTags>
+    <PackageTags>mapper;querymapper;entityframeworkcore;efcore;querymapping;typemapping;objectmapping</PackageTags>
     <IncludeSymbols>False</IncludeSymbols>
     <PackageId>EFQueryMapper</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <Version>1.0.1</Version>
+    <PackageReleaseNotes>enum conversion bug is fixed</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

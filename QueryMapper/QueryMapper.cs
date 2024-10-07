@@ -494,7 +494,7 @@ namespace QueryMapper
         private bool IsSimpleType(Type sourceType, Type destType)
         {
             // Check if both types are either primitive or string
-            return (IsSimpleType(sourceType) && IsSimpleType(destType));
+            return IsSimpleType(sourceType) && IsSimpleType(destType);
         }
 
         private bool IsSimpleType(Type type)
@@ -569,7 +569,8 @@ namespace QueryMapper
         /// <returns></returns>
         public static bool IsActualClass(Type type)
         {
-            return type.IsClass && !type.IsEnum && type != typeof(string);
+            var checkedtype = Nullable.GetUnderlyingType(type) ?? type;
+            return checkedtype.IsClass && !checkedtype.IsEnum && checkedtype != typeof(string);
         }
     }
 
