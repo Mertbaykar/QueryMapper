@@ -18,7 +18,7 @@ namespace QueryMapper.Examples.Core
         public string Email { get; private set; }
         public string Password { get; private set; }
 
-        public int ShareId { get; private set; }
+        public NoteShareSetting ShareId { get; private set; }
         //[NotMapped]
         //public NoteShareSetting ShareSetting => Enum.GetValues<NoteShareSetting>().First(x => (int)x == ShareId);
 

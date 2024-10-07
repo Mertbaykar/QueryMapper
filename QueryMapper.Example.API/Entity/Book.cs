@@ -16,7 +16,7 @@ namespace QueryMapper.Examples.Core
         public string ShelfLocation { get; private set; }
         public DateTime CreatedDate { get; private set; }
         
-        public string CoverImagePath { get; private set; }
+        public string? CoverImagePath { get; private set; }
 
         [ForeignKey(nameof(AuthorId))]
         public Author Author { get; private set; }

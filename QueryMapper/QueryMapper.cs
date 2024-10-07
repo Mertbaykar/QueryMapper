@@ -227,14 +227,14 @@ namespace QueryMapper
             }
 
             // Handle complex types (e.g., nested classes)
-            if (IsComplexType(destMemberType) && IsComplexType(sourceExprType))
+            if (TypeHelper.IsActualClass(destMemberType) && TypeHelper.IsActualClass(sourceExprType))
             {
                 // Null kontrolü yapalım
                 var sourceIsNull = Expression.Equal(sourceExpr, Expression.Constant(null, sourceExprType));
                 var nestedMapExpr = CreateMapExpression(sourceExprType, destMemberType);
                 var mapExpression = Expression.Invoke(nestedMapExpr, sourceExpr);
 
-                // Nullsa default value atanması (null olmalı)
+                // Nullsa default value atanır
                 resultExpr = Expression.Condition(
                     sourceIsNull,
                     Expression.Default(destMemberType),
@@ -244,19 +244,20 @@ namespace QueryMapper
                 return resultExpr;
             }
 
-            #region Primitive types (int, string, double, boolean etc)
+            #region (int, string, double, boolean, decimal, enum etc)
 
-            if (IsPrimitiveOrString(sourceExprType, destMemberType))
+            if (IsSimpleType(sourceExprType, destMemberType))
             {
                 // Check if the source and destination types are nullable
-                var sourceTypeChecked = Nullable.GetUnderlyingType(sourceExprType) ?? sourceExprType;
-                var destType = Nullable.GetUnderlyingType(destMemberType) ?? destMemberType;
+                var sourceTypeActual = Nullable.GetUnderlyingType(sourceExprType) ?? sourceExprType;
+                var destTypeActual = Nullable.GetUnderlyingType(destMemberType) ?? destMemberType;
 
-                if (sourceExprType != sourceTypeChecked)
+                // expression is nullable
+                if (sourceExprType != sourceTypeActual)
                 {
                     var hasValue = Expression.Property(sourceExpr, "HasValue");
                     var getValueOrDefault = Expression.Property(sourceExpr, "Value");
-                    var valueConversion = ConvertPrimitive(getValueOrDefault, destType);
+                    var valueConversion = ConvertPrimitive(getValueOrDefault, destTypeActual);
                     resultExpr = Expression.Condition(
                         hasValue,
                         valueConversion,
@@ -264,7 +265,7 @@ namespace QueryMapper
                     );
                 }
                 else
-                    resultExpr = ConvertPrimitive(sourceExpr, destType);
+                    resultExpr = ConvertPrimitive(sourceExpr, destTypeActual);
 
                 return resultExpr;
             }
@@ -274,24 +275,24 @@ namespace QueryMapper
             return null;
         }
 
-        private Expression ConvertPrimitive(Expression sourceValue, Type destType)
+        private Expression ConvertPrimitive(Expression sourceExp, Type destType)
         {
             if (destType == typeof(string))
             {
                 // Convert destinationMemberExpr string using ToString
-                return Expression.Call(sourceValue, nameof(object.ToString), Type.EmptyTypes);
+                return Expression.Call(sourceExp, nameof(object.ToString), Type.EmptyTypes);
             }
-            else if (sourceValue.Type == typeof(string))
+            else if (sourceExp.Type == typeof(string))
             {
-                // Convert sourceExpr string destinationMemberExpr numeric type using Convert.ChangeType
+                // Convert sourceExp string destinationMemberExpr numeric type using Convert.ChangeType
                 var convertMethod = typeof(Convert).GetMethod(nameof(Convert.ChangeType), new[] { typeof(object), typeof(Type) });
-                var convertCall = Expression.Call(convertMethod, sourceValue, Expression.Constant(destType));
+                var convertCall = Expression.Call(convertMethod, sourceExp, Expression.Constant(destType));
                 return Expression.Convert(convertCall, destType);
             }
             else
             {
                 // Handle other primitive type conversions
-                return Expression.Convert(sourceValue, destType);
+                return Expression.Convert(sourceExp, destType);
             }
         }
 
@@ -416,13 +417,13 @@ namespace QueryMapper
 
         private Expression CreateSelectExpression(Type sourceElementType, Type destElementType, Expression sourceExpr)
         {
-            // sourceExpr null ise null döndürmek için null kontrolü yapıyoruz
+            // sourceExp null ise null döndürmek için null kontrolü yapıyoruz
             var sourceIsNull = Expression.ReferenceEqual(sourceExpr, Expression.Constant(null));
 
             // Null durumda null IEnumerable<T> döndür
             var nullValue = Expression.Constant(null, typeof(IEnumerable<>).MakeGenericType(destElementType));
 
-            // Eğer sourceExpr null ise null döndürelim
+            // Eğer sourceExp null ise null döndürelim
             var conditionExpr = Expression.Condition(
                 sourceIsNull,
                 nullValue,  // Null durumda null döndür
@@ -489,22 +490,17 @@ namespace QueryMapper
             var selectCall = Expression.Call(selectMethod, whereCall, selectLambda);
             return selectCall;
         }
-
-        private bool IsComplexType(Type type)
-        {
-            return type.IsClass && type != typeof(string);
-        }
-
-        private bool IsPrimitiveOrString(Type sourceType, Type destType)
+       
+        private bool IsSimpleType(Type sourceType, Type destType)
         {
             // Check if both types are either primitive or string
-            return (IsPrimitiveOrString(sourceType) && IsPrimitiveOrString(destType));
+            return (IsSimpleType(sourceType) && IsSimpleType(destType));
         }
 
-        private bool IsPrimitiveOrString(Type type)
+        private bool IsSimpleType(Type type)
         {
             var checkedtype = Nullable.GetUnderlyingType(type) ?? type;
-            return checkedtype.IsPrimitive || checkedtype == typeof(string);
+            return checkedtype.IsPrimitive || checkedtype == typeof(string) || checkedtype.IsEnum;
         }
 
         private Type GetReturnTypeFromExpression(Expression expression)
@@ -563,6 +559,20 @@ namespace QueryMapper
         }
     }
 
+    internal class TypeHelper
+    {
+
+        /// <summary>
+        /// Checks whether type is a custom class other than system defined
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        public static bool IsActualClass(Type type)
+        {
+            return type.IsClass && !type.IsEnum && type != typeof(string);
+        }
+    }
+
     internal class MapperConfiguration
     {
         internal readonly Type SourceType;
@@ -599,7 +609,7 @@ namespace QueryMapper
 
         public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
         {
-            // sourceExpr'ı kontrol et
+            // sourceExp'ı kontrol et
             if (sourceExpr.Body is UnaryExpression sourceBody && sourceBody.NodeType == ExpressionType.Convert)
             {
                 sourceExpr = Expression.Lambda<Func<TSource, TSourceExpression>>(sourceBody.Operand, sourceExpr.Parameters);

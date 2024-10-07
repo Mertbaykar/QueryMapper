@@ -49,7 +49,7 @@ namespace QueryMapper
 
         private static void EnsureClass(Type type)
         {
-            if (!(type.IsClass && type != typeof(string)))
+            if (!TypeHelper.IsActualClass(type))
                 throw new ArgumentException($"{type.Name} should be class");
         }
     }
