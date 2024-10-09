@@ -18,7 +18,8 @@ namespace QueryMapper.Examples.Core
                 config
                 .Match(x => x.Author.FirstName + " " + x.Author.LastName, y => y.AuthorName)
                 .Match(x => x.CreatedBy.FirstName + " " + x.CreatedBy.LastName, y => y.CreatedByName)
-                ;
+                .UsingConstructor(x => x.AddParameter(book => book.AuthorId)
+                );
             });
 
             Configure<Note, ReadNoteResponse>(config =>

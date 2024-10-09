@@ -4,14 +4,24 @@ namespace QueryMapper.Examples.Core
 {
     public class ReadBookResponse
     {
-        public string Name { get;  set; }
+        public ReadBookResponse()
+        {
+            
+        }
+
+        private ReadBookResponse(int authorId)
+        {
+            AuthorId = authorId;
+        }
+
+        public string name { get;  set; }
         public string Summary { get;  set; }
         public int PublishYear { get;  set; }
         
         public string ShelfLocation { get;  set; }
         public DateTime CreatedDate { get;  set; }
        
-        public string CoverImagePath { get;  set; }
+        public string? CoverImagePath { get;  set; }
 
         public int AuthorId { get;  set; }
         public string AuthorName { get;  set; }

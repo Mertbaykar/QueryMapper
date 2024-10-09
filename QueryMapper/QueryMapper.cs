@@ -252,7 +252,7 @@ namespace QueryMapper
                 var sourceTypeActual = Nullable.GetUnderlyingType(sourceExprType) ?? sourceExprType;
                 var destTypeActual = Nullable.GetUnderlyingType(destMemberType) ?? destMemberType;
 
-                // expression is nullable
+                // ctorArgumentExp is nullable
                 if (sourceExprType != sourceTypeActual)
                 {
                     var hasValue = Expression.Property(sourceExpr, "HasValue");
@@ -298,14 +298,12 @@ namespace QueryMapper
 
         private MemberInfo? GetPropertyOrField(Type type, string memberName)
         {
-            var prop = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                .FirstOrDefault(p => string.Equals(p.Name, memberName, StringComparison.OrdinalIgnoreCase));
+            var prop = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
 
             if (prop != null)
                 return prop;
 
-            var field = type.GetFields(BindingFlags.Instance | BindingFlags.Public)
-                .FirstOrDefault(f => string.Equals(f.Name, memberName, StringComparison.OrdinalIgnoreCase));
+            var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
 
             if (field != null)
                 return field;
@@ -385,7 +383,7 @@ namespace QueryMapper
 
             if (sourceElementType != null && destElementType != null)
             {
-                // Create the select expression for the collection mapping
+                // Create the select ctorArgumentExp for the collection mapping
                 var selectExpression = CreateSelectExpression(sourceElementType, destElementType, sourceExpr);
 
                 // Handle specific collection types like List, Array, ICollection, etc.
@@ -469,7 +467,7 @@ namespace QueryMapper
 
             var whereCall = Expression.Call(whereMethod, sourceExpr, whereLambda);
 
-            // Mapping expression
+            // Mapping ctorArgumentExp
             var mapExpression = CreateMapExpression(sourceElementType, destElementType);
             var selectBody = Expression.Invoke(mapExpression, sourceElementParameter);
             var selectLambda = Expression.Lambda(selectBody, sourceElementParameter);
@@ -490,7 +488,7 @@ namespace QueryMapper
             var selectCall = Expression.Call(selectMethod, whereCall, selectLambda);
             return selectCall;
         }
-       
+
         private bool IsSimpleType(Type sourceType, Type destType)
         {
             // Check if both types are either primitive or string
@@ -508,70 +506,6 @@ namespace QueryMapper
             return ExpressionHelper.GetReturnTypeFromExpression(expression);
         }
 
-    }
-
-    internal class ExpressionHelper
-    {
-        public static Type GetReturnTypeFromExpression(Expression expression)
-        {
-            switch (expression)
-            {
-                // Handle lambda expressions
-                case LambdaExpression lambdaExpression:
-                    return GetReturnTypeFromExpression(lambdaExpression.Body);
-
-                // Handle method calls
-                case MethodCallExpression methodCallExpression:
-                    return methodCallExpression.Method.ReturnType;
-
-                // Handle member access (e.g., accessing properties or fields)
-                case MemberExpression memberExpression:
-                    if (memberExpression.Member is PropertyInfo propertyInfo)
-                        return propertyInfo.PropertyType;
-                    if (memberExpression.Member is FieldInfo fieldInfo)
-                        return fieldInfo.FieldType;
-                    break;
-
-                // Handle unary expressions (e.g., type conversions)
-                case UnaryExpression unaryExpression:
-                    return unaryExpression.Type;
-
-                // Handle constant expressions (e.g., literal values)
-                case ConstantExpression constantExpression:
-                    return constantExpression.Type;
-
-                // Handle binary expressions (e.g., addition, concatenation)
-                case BinaryExpression binaryExpression:
-                    // In the case of concatenation, both sides should be strings
-                    // We can assume the result will be of the same type as the operands
-                    Type leftType = GetReturnTypeFromExpression(binaryExpression.Left);
-                    Type rightType = GetReturnTypeFromExpression(binaryExpression.Right);
-
-                    // If both operands are of the same type, return that type
-                    if (leftType == rightType)
-                        return leftType;
-
-                    // If not, return the most specific common type, like object
-                    return typeof(object);
-            }
-
-            throw new InvalidOperationException("Unsupported expression type");
-        }
-    }
-
-    internal class TypeHelper
-    {
-
-        /// <summary>
-        /// Checks whether type is a custom class other than system defined
-        /// </summary>
-        /// <param name="type"></param>
-        /// <returns></returns>
-        public static bool IsActualClass(Type type)
-        {
-            var checkedtype = Nullable.GetUnderlyingType(type) ?? type;
-            return checkedtype.IsClass && !checkedtype.IsEnum && checkedtype != typeof(string);
-        }
     }
 
     internal class MapperConfiguration
@@ -600,13 +534,16 @@ namespace QueryMapper
         }
     }
 
-    public class MapperConfiguration<TSource, TDestination> : IDisposable where TSource : class
-        where TDestination : class
+    public class MapperConfiguration<TSource, TDestination> : IDisposable where TSource : class where TDestination : class
     {
         private bool disposedValue;
 
         internal List<MapperMatching> Matchings { get; set; } = new();
-        internal NewExpression? CtorExpression { get; private set; }
+        internal NewExpression? CtorExpression { get; set; }
+        /// <summary>
+        /// Used with non-public ctors
+        /// </summary>
+        internal readonly List<Expression> ctorArgExpressions = new();
 
         public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
         {
@@ -638,6 +575,12 @@ namespace QueryMapper
             throw new Exception($"Ensure all destination expressions represent properties or fields while converting {typeof(TSource).Name} to {typeof(TDestination).Name}");
         }
 
+        /// <summary>
+        /// Defines which public constructor to use for <typeparamref name="TDestination"/>.
+        /// </summary>
+        /// <param name="ctorExp"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public MapperConfiguration<TSource, TDestination> UsingConstructor(Expression<Func<TSource, TDestination>> ctorExp)
         {
 
@@ -646,7 +589,42 @@ namespace QueryMapper
                 CtorExpression = newExp;
                 return this;
             }
-            throw new InvalidOperationException($"{UsingConstructor} method should return a constructor");
+            throw new InvalidOperationException($"UsingConstructor method should return a constructor");
+        }
+
+        /// <summary>
+        /// Uses the <typeparamref name="TDestination"/> constructor matching types of arguments via this method.
+        /// </summary>
+        /// <param name="ctorBuilderAction"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public MapperConfiguration<TSource, TDestination> UsingConstructor(Action<ConstructorBuilder<TSource, TDestination>> ctorBuilderAction)
+        {
+            if (ctorBuilderAction == null)
+                throw new InvalidOperationException($"Constructor for {typeof(TDestination).Name} should be provided in UsingConstructor method. You could do this using ConstructorBuilder action.");
+
+            var constructorBuilder = new ConstructorBuilder<TSource, TDestination>(this);
+            ctorBuilderAction.Invoke(constructorBuilder);
+            BuildConstructor();
+
+            if (this.CtorExpression == null)
+                throw new InvalidOperationException($"Ensure BuildConstructor is called while configuring constructor for {typeof(TDestination).Name}. Error occurred while mapping from {typeof(TSource).Name} to {typeof(TDestination).Name}");
+
+            return this;
+        }
+
+        private void BuildConstructor()
+        {
+            Type[] types = Type.EmptyTypes;
+
+            if (ctorArgExpressions.Count > 0)
+                types = ctorArgExpressions.Select(x => x.Type).ToArray();
+
+            ConstructorInfo? ctor = typeof(TDestination).GetConstructor(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic, types);
+            if (ctor == null)
+                throw new InvalidOperationException($"{typeof(TDestination).Name} type has no constructor with the types of arguments you passed");
+
+            CtorExpression = Expression.New(ctor, ctorArgExpressions);
         }
 
         #region Dispose
@@ -685,6 +663,23 @@ namespace QueryMapper
 
     }
 
+    public class ConstructorBuilder<TSource, TDestination> where TSource : class where TDestination : class
+    {
+
+        private readonly MapperConfiguration<TSource, TDestination> configuration;
+
+        internal ConstructorBuilder(MapperConfiguration<TSource, TDestination> configuration)
+        {
+            this.configuration = configuration;
+        }
+
+        public ConstructorBuilder<TSource, TDestination> AddParameter<TValue>(Expression<Func<TSource, TValue>> expression)
+        {
+            configuration.ctorArgExpressions.Add(expression.Body);
+            return this;
+        }
+    }
+
     internal class MapperMatching
     {
 
@@ -698,20 +693,4 @@ namespace QueryMapper
         public readonly Expression SourceExpr;
     }
 
-    internal class ParameterReplacer : ExpressionVisitor
-    {
-        private readonly Expression _oldExpression;
-        private readonly Expression _newExpression;
-
-        public ParameterReplacer(Expression oldExpression, Expression newExpression)
-        {
-            _oldExpression = oldExpression;
-            _newExpression = newExpression;
-        }
-
-        protected override Expression VisitParameter(ParameterExpression node)
-        {
-            return node == _oldExpression ? _newExpression : base.VisitParameter(node);
-        }
-    }
 }
