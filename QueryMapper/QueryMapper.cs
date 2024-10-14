@@ -543,7 +543,7 @@ namespace QueryMapper
         /// <summary>
         /// Used with non-public ctors
         /// </summary>
-        internal readonly List<Expression> ctorArgExpressions = new();
+        internal readonly List<Expression> CtorArgExpressions = new();
 
         public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
         {
@@ -576,12 +576,12 @@ namespace QueryMapper
         }
 
         /// <summary>
-        /// Defines which public constructor to use for <typeparamref name="TDestination"/>.
+        /// Allows which public constructor to use for <typeparamref name="TDestination"/>.
         /// </summary>
         /// <param name="ctorExp"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public MapperConfiguration<TSource, TDestination> UsingConstructor(Expression<Func<TSource, TDestination>> ctorExp)
+        public MapperConfiguration<TSource, TDestination> UsingPublicConstructor(Expression<Func<TSource, TDestination>> ctorExp)
         {
 
             if (ctorExp.Body is NewExpression newExp)
@@ -589,7 +589,7 @@ namespace QueryMapper
                 CtorExpression = newExp;
                 return this;
             }
-            throw new InvalidOperationException($"UsingConstructor method should return a constructor");
+            throw new InvalidOperationException($"{nameof(UsingPublicConstructor)} method should return a constructor");
         }
 
         /// <summary>
@@ -598,33 +598,45 @@ namespace QueryMapper
         /// <param name="ctorBuilderAction"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public MapperConfiguration<TSource, TDestination> UsingConstructor(Action<ConstructorBuilder<TSource, TDestination>> ctorBuilderAction)
+        public MapperConfiguration<TSource, TDestination> UsingNonPublicConstructor(Expression<Func<TSource, ParameterContainer>> ctorExp)
         {
-            if (ctorBuilderAction == null)
-                throw new InvalidOperationException($"Constructor for {typeof(TDestination).Name} should be provided in UsingConstructor method. You could do this using ConstructorBuilder action.");
+            if (ctorExp.Body is NewExpression newExp)
+            {
+                this.CtorArgExpressions.Clear();
+                NewArrayExpression argumentsArrayExp = (newExp.Arguments.First() as NewArrayExpression)!;
+                List<Expression> argumentExpressions = new();
 
-            var constructorBuilder = new ConstructorBuilder<TSource, TDestination>(this);
-            ctorBuilderAction.Invoke(constructorBuilder);
-            BuildConstructor();
+                foreach (var expression in argumentsArrayExp.Expressions)
+                {
+                    if (expression is UnaryExpression unaryExp && unaryExp.NodeType == ExpressionType.Convert && unaryExp.Type == typeof(object))
+                        argumentExpressions.Add(unaryExp.Operand);
+                    else
+                        argumentExpressions.Add(expression);
+                }
 
-            if (this.CtorExpression == null)
-                throw new InvalidOperationException($"Ensure BuildConstructor is called while configuring constructor for {typeof(TDestination).Name}. Error occurred while mapping from {typeof(TSource).Name} to {typeof(TDestination).Name}");
+                this.CtorArgExpressions.AddRange(argumentExpressions);
+                BuildConstructorWithArguments();
+                return this;
+            }
 
-            return this;
+            throw new InvalidOperationException($"{nameof(UsingNonPublicConstructor)} method should return a constructor of {nameof(ParameterContainer)} type");
         }
 
-        private void BuildConstructor()
+        private void BuildConstructorWithArguments()
         {
             Type[] types = Type.EmptyTypes;
 
-            if (ctorArgExpressions.Count > 0)
-                types = ctorArgExpressions.Select(x => x.Type).ToArray();
+            if (CtorArgExpressions.Count > 0)
+                types = CtorArgExpressions.Select(x => x.Type).ToArray();
 
             ConstructorInfo? ctor = typeof(TDestination).GetConstructor(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic, types);
             if (ctor == null)
                 throw new InvalidOperationException($"{typeof(TDestination).Name} type has no constructor with the types of arguments you passed");
 
-            CtorExpression = Expression.New(ctor, ctorArgExpressions);
+            CtorExpression = Expression.New(ctor, CtorArgExpressions);
+
+            if (this.CtorExpression == null)
+                throw new InvalidOperationException($"Ensure right parameter types are used while configuring constructor for {typeof(TDestination).Name}. Error occurred while mapping from {typeof(TSource).Name} to {typeof(TDestination).Name}");
         }
 
         #region Dispose
@@ -663,22 +675,16 @@ namespace QueryMapper
 
     }
 
-    public class ConstructorBuilder<TSource, TDestination> where TSource : class where TDestination : class
+
+    public class ParameterContainer
     {
 
-        private readonly MapperConfiguration<TSource, TDestination> configuration;
-
-        internal ConstructorBuilder(MapperConfiguration<TSource, TDestination> configuration)
+        public ParameterContainer(params object[] expressions)
         {
-            this.configuration = configuration;
-        }
 
-        public ConstructorBuilder<TSource, TDestination> AddParameter<TValue>(Expression<Func<TSource, TValue>> expression)
-        {
-            configuration.ctorArgExpressions.Add(expression.Body);
-            return this;
         }
     }
+
 
     internal class MapperMatching
     {
