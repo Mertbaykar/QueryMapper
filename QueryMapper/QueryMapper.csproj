@@ -7,16 +7,21 @@
     <Title>EFQueryMapper</Title>
     <Authors>MertBaykar</Authors>
     <Company> </Company>
-    <Description>EFQueryMapper is a powerful library for seamless type mapping, including support for Entity Framework's IQueryable interface. It allows for efficient mapping between entities and DTOs, streamlining the data transformation process in .NET applications. Mapping profiles are created only once and saved, which makes subsequent mapping operations very fast. If there is no need for any configuration between two types, you don't need to do anything in mapper. Not even a 'CreateMap' required.</Description>
+    <Description>- Entity Framework query mapping on the fly!
+- High performance by mapping expression caching between type
+- Provides customization abilities in a simple way
+- Easy to use with the help of extension methods
+- Works with not only entityframework queries via IQueryable interface, also any collection type and class can be mapped.
+- Not even a 'CreateMap' required if no configuration needed</Description>
     <PackageProjectUrl>https://github.com/Mertbaykar/QueryMapper</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Mertbaykar/QueryMapper</RepositoryUrl>
-    <PackageTags>mapper;querymapper;entityframeworkcore;efcore;querymapping;typemapping;objectmapping</PackageTags>
+    <PackageTags>mapper;typemapping;objectmapping;querymapper;entityframeworkcore;efcore;querymapping</PackageTags>
     <IncludeSymbols>False</IncludeSymbols>
     <PackageId>EFQueryMapper</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
-    <Version>1.0.3</Version>
-    <PackageReleaseNotes>private constructor usage configuration added</PackageReleaseNotes>
+    <Version>1.0.5</Version>
+    <PackageReleaseNotes>performance improvements</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

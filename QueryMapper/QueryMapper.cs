@@ -11,7 +11,7 @@ namespace QueryMapper
     public abstract class QueryMapper : IQueryMapper
     {
 
-        private readonly List<MapperConfiguration> _configurations = new();
+        private readonly HashSet<MapperConfiguration> _configurations = new();
 
         public QueryMapper Configure<TSource, TDestination>(Action<MapperConfiguration<TSource, TDestination>>? configuration = null)
             where TSource : class
@@ -70,28 +70,9 @@ namespace QueryMapper
         private MemberInitExpression CreateMapExpressionCore(Type sourceType, Type destType, ParameterExpression sourceParameter)
         {
             MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destType);
-            MemberInitExpression memberInitExpression;
 
-            if (config != null && config.MemberInitExpression != null)
-            {
-                // mevcut parametreyi yenisiyle değiştir
-                var oldParameter = FindParameterInBindings(config.MemberInitExpression.Bindings)!;
-                var replacer = new ParameterReplacer(oldParameter, sourceParameter);
-                // binding'ler yeni parametre ile yenileniyor
-                var newBindings = config.MemberInitExpression.Bindings.Select(binding =>
-                {
-                    if (binding is MemberAssignment assignment)
-                    {
-                        var assignmentExpression = replacer.Visit(assignment.Expression);
-                        return Expression.Bind(assignment.Member, assignmentExpression);
-                    }
-                    return binding;
-                });
-
-                var newExp = replacer.Visit(config.MemberInitExpression.NewExpression) as NewExpression;
-                memberInitExpression = config.MemberInitExpression.Update(newExp!, newBindings);
-                return memberInitExpression;
-            }
+            if (config?.MemberInitExpression != null)
+                return config.MemberInitExpression;
 
             var bindings =
                  GetMembersWriteable(destType)
@@ -99,7 +80,7 @@ namespace QueryMapper
                 .Where(binding => binding != null);
 
             var ctorExp = CreateConstructorExpression(sourceType, destType, sourceParameter);
-            memberInitExpression = Expression.MemberInit(ctorExp, bindings);
+            MemberInitExpression memberInitExpression = Expression.MemberInit(ctorExp, bindings);
 
             if (config == null)
                 config = this._configurations.First(x => x.SourceType == sourceType && x.DestinationType == destType);
@@ -152,6 +133,7 @@ namespace QueryMapper
             return Expression.New(constructor, arguments);
         }
 
+        [Obsolete]
         private ParameterExpression? FindParameterInBindings(IEnumerable<MemberBinding> bindings)
         {
             foreach (var binding in bindings)
@@ -177,7 +159,7 @@ namespace QueryMapper
             config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destinationType);
             matching = config?.Matchings.FirstOrDefault(x => x.DestinationMember == destMember.Name);
 
-            if (matching == null)
+            if (matching == default(MapperMatching))
             {
                 MemberInfo? sourceMember = GetPropertyOrField(sourceType, destMember.Name);
                 if (sourceMember == null || (sourceMember is PropertyInfo prop && !prop.CanRead))
@@ -195,8 +177,8 @@ namespace QueryMapper
                 return CreateBindingCore(destMember, sourceExpr);
             }
 
-            var lambdaExpr = matching.SourceExpr as LambdaExpression;
-            sourceExpr = new ParameterReplacer(lambdaExpr.Parameters[0], sourceParameter).Visit(lambdaExpr.Body);
+            var lambdaExpr = matching!.Value.SourceExpr as LambdaExpression;
+            sourceExpr = new ParameterReplacer(lambdaExpr!.Parameters[0], sourceParameter).Visit(lambdaExpr.Body);
             return CreateBindingCore(destMember, sourceExpr);
         }
 
@@ -311,21 +293,19 @@ namespace QueryMapper
             return null;
         }
 
-        private MemberInfo[] GetMembersWriteable(Type type)
+        private IEnumerable<MemberInfo> GetMembersWriteable(Type type)
         {
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(x => x.CanWrite).OfType<MemberInfo>();
-            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance).OfType<MemberInfo>();
-            return props.Concat(fields).ToArray();
+            return type.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.SetProperty | BindingFlags.SetField)
+                .Where(m => m.MemberType == MemberTypes.Property || m.MemberType == MemberTypes.Field);
         }
 
         private Type? GetMemberType(MemberInfo member)
         {
             if (member is PropertyInfo destProp)
                 return destProp.PropertyType;
-            else if (member is FieldInfo destField)
+            if (member is FieldInfo destField)
                 return destField.FieldType;
-            else
-                return null;
+            return null;
         }
 
         private ParameterExpression? ExtractParameterExpression(Expression expression)
@@ -540,10 +520,6 @@ namespace QueryMapper
 
         internal List<MapperMatching> Matchings { get; set; } = new();
         internal NewExpression? CtorExpression { get; set; }
-        /// <summary>
-        /// Used with non-public ctors
-        /// </summary>
-        internal readonly List<Expression> CtorArgExpressions = new();
 
         public MapperConfiguration<TSource, TDestination> Match<TSourceExpression, TDestinationMember>(Expression<Func<TSource, TSourceExpression>> sourceExpr, Expression<Func<TDestination, TDestinationMember>> destinationMemberExpr)
         {
@@ -564,8 +540,8 @@ namespace QueryMapper
                 if (destinationMember.Member.MemberType == MemberTypes.Property || destinationMember.Member.MemberType == MemberTypes.Field)
                 {
                     Matchings.RemoveAll(x => x.DestinationMember == destinationMember.Member.Name);
-                    var matching = new MapperMatching(destinationMember.Member.Name, sourceExpr);
-                    Matchings.Add(matching);
+                    //var matching = new MapperMatching(destinationMember.Member.Name, sourceExpr);
+                    Matchings.Add(new MapperMatching(destinationMember.Member.Name, sourceExpr));
                     return this;
                 }
 
@@ -602,7 +578,7 @@ namespace QueryMapper
         {
             if (ctorExp.Body is NewExpression newExp)
             {
-                this.CtorArgExpressions.Clear();
+                //this.CtorArgExpressions.Clear();
                 NewArrayExpression argumentsArrayExp = (newExp.Arguments.First() as NewArrayExpression)!;
                 List<Expression> argumentExpressions = new();
 
@@ -614,28 +590,28 @@ namespace QueryMapper
                         argumentExpressions.Add(expression);
                 }
 
-                this.CtorArgExpressions.AddRange(argumentExpressions);
-                BuildConstructorWithArguments();
+                //this.CtorArgExpressions.AddRange(argumentExpressions);
+                BuildConstructorWithArguments(argumentExpressions);
                 return this;
             }
 
             throw new InvalidOperationException($"{nameof(UsingNonPublicConstructor)} method should return a constructor of {nameof(ParameterContainer)} type");
         }
 
-        private void BuildConstructorWithArguments()
+        private void BuildConstructorWithArguments(List<Expression> argumentExpressions)
         {
             Type[] types = Type.EmptyTypes;
 
-            if (CtorArgExpressions.Count > 0)
-                types = CtorArgExpressions.Select(x => x.Type).ToArray();
+            if (argumentExpressions.Count > 0)
+                types = argumentExpressions.Select(x => x.Type).ToArray();
 
             ConstructorInfo? ctor = typeof(TDestination).GetConstructor(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic, types);
             if (ctor == null)
                 throw new InvalidOperationException($"{typeof(TDestination).Name} type has no constructor with the types of arguments you passed");
 
-            CtorExpression = Expression.New(ctor, CtorArgExpressions);
+            CtorExpression = Expression.New(ctor, argumentExpressions);
 
-            if (this.CtorExpression == null)
+            if (CtorExpression == null)
                 throw new InvalidOperationException($"Ensure right parameter types are used while configuring constructor for {typeof(TDestination).Name}. Error occurred while mapping from {typeof(TSource).Name} to {typeof(TDestination).Name}");
         }
 
@@ -675,28 +651,13 @@ namespace QueryMapper
 
     }
 
+    internal record struct MapperMatching(string DestinationMember, Expression SourceExpr);
 
     public class ParameterContainer
     {
-
         public ParameterContainer(params object[] expressions)
         {
 
         }
     }
-
-
-    internal class MapperMatching
-    {
-
-        public MapperMatching(string destinationMember, Expression sourceExpr)
-        {
-            DestinationMember = destinationMember;
-            SourceExpr = sourceExpr;
-        }
-
-        public readonly string DestinationMember;
-        public readonly Expression SourceExpr;
-    }
-
 }
