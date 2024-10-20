@@ -4,7 +4,7 @@ EFQueryMapper is a powerful library for type mapping, including support for Enti
 
 # Why use it over other mapping libraries?
 - Entity Framework query mapping on the fly! Thanks to Expression API 🥂
-- High performance by mapping **expression caching** between types
+- High performance by caching mapping expressions
 - Provides customization abilities in a simple way
 - Easy to use with the help of extension methods
 - Works with **not only entityframework queries** via IQueryable interface, also any collection type and class can be mapped.
