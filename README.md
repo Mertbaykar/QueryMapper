@@ -6,7 +6,7 @@ EFQueryMapper is a powerful library for type mapping, including support for Enti
 - Entity Framework query mapping on the fly! Thanks to Expression API 🥂
 - High performance by **caching mapping expressions**
 - Provides customization abilities in a simple way
-- Lets you **see mapping expressions between types** ([see example](?plain=1#L168))
+- Lets you **see mapping expressions between types** (visit example at bottom)
 - Easy to use with the help of extension methods
 - Works with **not only entity framework queries** via IQueryable interface, also any collection type and class can be mapped.
 
@@ -170,7 +170,7 @@ If you need to use a **non-public constructor** of destination type and there ar
 
 You could also **check the mapping expression** between types:
 ```csharp
-// Starting from version 2.0.0
+// Could be used starting from version 2.0.0
  public string GetExpression() =>
       QueryMapper.GetMappingExpression<Book, ReadBookResponse>();
 ```
