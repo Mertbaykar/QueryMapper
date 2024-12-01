@@ -4,10 +4,11 @@ EFQueryMapper is a powerful library for type mapping, including support for Enti
 
 # Why use it over other mapping libraries?
 - Entity Framework query mapping on the fly! Thanks to Expression API 🥂
-- High performance by caching mapping expressions
+- High performance by **caching mapping expressions**
 - Provides customization abilities in a simple way
+- Lets you **see mapping expressions between types** ([see example](?plain=1#L168))
 - Easy to use with the help of extension methods
-- Works with **not only entityframework queries** via IQueryable interface, also any collection type and class can be mapped.
+- Works with **not only entity framework queries** via IQueryable interface, also any collection type and class can be mapped.
 
 # Example
 You can map directly using IQueryable interface. Here's a quick example:
@@ -92,6 +93,42 @@ public class BookMapper : QueryMapper
     }
 }
 ```
+
+**Changed this way starting from version 2.0.0**:
+```csharp
+// Starting from version 2.0.0
+public class BookMapper : QueryMapper
+{
+  
+    protected override void Configure(ConfigurationBuilder builder)
+    {
+        builder.Configure<Person, PersonDTO>(config =>
+        {
+            config
+            .Match(x => x.Firstname + " " + x.Lastname, dto => dto.Fullname)
+            .UsingPublicConstructor(x => new PersonDTO(x.Firstname, x.Lastname))
+            ;
+        });
+
+        builder.Configure<Book, ReadBookResponse>(config =>
+        {
+            config
+            .Match(x => x.Author.FirstName + " " + x.Author.LastName, y => y.AuthorName)
+            .Match(x => x.CreatedBy.FirstName + " " + x.CreatedBy.LastName, y => y.CreatedByName)
+            .UsingNonPublicConstructor(x => new ParameterContainer(x.AuthorId))
+            ;
+        });
+
+        builder.Configure<Note, ReadNoteResponse>(config =>
+        {
+            config
+            .Match(x => x.User.FirstName + " " + x.User.LastName, y => y.UserName)
+            .Match(x => x.User.ShareId, y => y.ShareId)
+            ;
+        });
+    }
+}
+```
 You see we have "**Configure**" method. It has a couple methods to extend mapping abilities:  
 
 **Match**: Allows you to determine source type expression to use and the destination type's property/field to set. See below example:
@@ -118,6 +155,9 @@ Even if it is private, it is easily used with mapper. If you have multiple const
 
 If you need to use a **non-public constructor** of destination type and there are multiple constructors, see below example:
 ```csharp
+// use 'builder.Configure' starting from version 2.0.0 inside the method with signature:
+// protected override void Configure(ConfigurationBuilder builder)
+
   Configure<Book, ReadBookResponse>(config =>
   {
       config
@@ -127,6 +167,14 @@ If you need to use a **non-public constructor** of destination type and there ar
       ;
   });
 ```
+
+You could also **check the mapping expression** between types:
+```csharp
+// Starting from version 2.0.0
+ public string GetExpression() =>
+      QueryMapper.GetMappingExpression<Book, ReadBookResponse>();
+```
+
 In **UsingNonPublicConstructor** you could add arguments you wish, ensure the argument types you added to ParameterContainer match the wished destination type constructor's argument types you want to use.  
 
 

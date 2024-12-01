@@ -20,5 +20,12 @@ namespace QueryMapper.Examples.API.Controllers
             var result = BookRepository.Get();
             return Ok(result);
         }
+
+        [HttpGet]
+        public IActionResult GetExpression()
+        {
+            var result = BookRepository.GetExpression();
+            return Ok(result);
+        }
     }
 }

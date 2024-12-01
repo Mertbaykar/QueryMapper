@@ -11,63 +11,61 @@ namespace QueryMapper
     public abstract class QueryMapper : IQueryMapper
     {
 
-        private readonly HashSet<MapperConfiguration> _configurations = new();
+        protected QueryMapper() => BuildConfig();
 
-        public QueryMapper Configure<TSource, TDestination>(Action<MapperConfiguration<TSource, TDestination>>? configuration = null)
-            where TSource : class
-            where TDestination : class
+        internal readonly HashSet<MapperConfiguration> _configurations = new();
+
+        /// <summary>
+        /// Use for mapping configurations
+        /// </summary>
+        /// <param name="builder"></param>
+        protected virtual void Configure(ConfigurationBuilder builder)
         {
-            if (_configurations.Any(c => c.SourceType == typeof(TSource) && c.DestinationType == typeof(TDestination)))
-                throw new Exception($"Configuration for mapping from {typeof(TSource).Name} type to {typeof(TDestination).Name} is defined more than once. Check mapper code");
 
-            var config = new MapperConfiguration(typeof(TSource), typeof(TDestination));
+        }
 
-            using (var configTemp = new MapperConfiguration<TSource, TDestination>())
-            {
-                configuration?.Invoke(configTemp);
-                configTemp.Matchings.ForEach(config.Matchings.Add);
-                if (configTemp.CtorExpression != null)
-                    config.SetCtorExpression(configTemp.CtorExpression);
-                _configurations.Add(config);
-            }
-
-            return this;
+        private void BuildConfig()
+        {
+            ConfigurationBuilder configBuilder = new ConfigurationBuilder(this);
+            Configure(configBuilder);
         }
 
         public IQueryable<TDestination> Map<TSource, TDestination>(IQueryable<TSource> sourceQuery) where TSource : class where TDestination : class
         {
-            var selector = CreateMapExpression<TSource, TDestination>();
+            var selector = GetMapExpression<TSource, TDestination>();
             return sourceQuery.Select(selector);
         }
 
         public IEnumerable<TDestination> Map<TSource, TDestination>(IEnumerable<TSource> source) where TSource : class where TDestination : class
         {
-            var selector = CreateMapExpression<TSource, TDestination>().Compile();
+            var selector = GetMapExpression<TSource, TDestination>().Compile();
             return source.Select(selector);
         }
 
         public TDestination Map<TSource, TDestination>(TSource source) where TSource : class where TDestination : class
         {
-            var selector = CreateMapExpression<TSource, TDestination>().Compile();
+            var selector = GetMapExpression<TSource, TDestination>().Compile();
             return selector(source);
         }
 
-        private Expression<Func<TSource, TDestination>> CreateMapExpression<TSource, TDestination>()
+        private Expression<Func<TSource, TDestination>> GetMapExpression<TSource, TDestination>() where TSource : class where TDestination : class
         {
             var sourceParameter = Expression.Parameter(typeof(TSource), typeof(TSource).Name);
-            var body = CreateMapExpressionCore(typeof(TSource), typeof(TDestination), sourceParameter);
+            var body = GetMapExpressionCore(typeof(TSource), typeof(TDestination), sourceParameter);
             return Expression.Lambda<Func<TSource, TDestination>>(body, sourceParameter);
         }
 
-        private LambdaExpression CreateMapExpression(Type sourceType, Type destType)
+        public string GetMappingExpression<TSource, TDestination>() where TSource : class where TDestination : class => GetMapExpression<TSource, TDestination>().ToString();
+
+        private LambdaExpression GetMapExpression(Type sourceType, Type destType)
         {
             var sourceParameter = Expression.Parameter(sourceType, sourceType.Name);
-            var body = CreateMapExpressionCore(sourceType, destType, sourceParameter);
+            var body = GetMapExpressionCore(sourceType, destType, sourceParameter);
             var lambdaType = typeof(Func<,>).MakeGenericType(sourceType, destType);
             return Expression.Lambda(lambdaType, body, sourceParameter);
         }
 
-        private MemberInitExpression CreateMapExpressionCore(Type sourceType, Type destType, ParameterExpression sourceParameter)
+        private MemberInitExpression GetMapExpressionCore(Type sourceType, Type destType, ParameterExpression sourceParameter)
         {
             MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destType);
 
@@ -79,7 +77,7 @@ namespace QueryMapper
                 .Select(destMember => CreateBinding(destMember, sourceParameter, sourceType))
                 .Where(binding => binding != null);
 
-            var ctorExp = CreateConstructorExpression(sourceType, destType, sourceParameter);
+            var ctorExp = GetConstructorExpression(sourceType, destType, sourceParameter);
             MemberInitExpression memberInitExpression = Expression.MemberInit(ctorExp, bindings);
 
             if (config == null)
@@ -89,7 +87,7 @@ namespace QueryMapper
             return memberInitExpression;
         }
 
-        private NewExpression CreateConstructorExpression(Type sourceType, Type destType, ParameterExpression sourceParameter)
+        private NewExpression GetConstructorExpression(Type sourceType, Type destType, ParameterExpression sourceParameter)
         {
             MapperConfiguration? config = this._configurations.FirstOrDefault(x => x.SourceType == sourceType && x.DestinationType == destType);
             if (config?.CtorExpression != null)
@@ -213,7 +211,7 @@ namespace QueryMapper
             {
                 // Null kontrolü yapalım
                 var sourceIsNull = Expression.Equal(sourceExpr, Expression.Constant(null, sourceExprType));
-                var nestedMapExpr = CreateMapExpression(sourceExprType, destMemberType);
+                var nestedMapExpr = GetMapExpression(sourceExprType, destMemberType);
                 var mapExpression = Expression.Invoke(nestedMapExpr, sourceExpr);
 
                 // Nullsa default value atanır
@@ -280,15 +278,11 @@ namespace QueryMapper
 
         private MemberInfo? GetPropertyOrField(Type type, string memberName)
         {
-            var prop = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-
-            if (prop != null)
+            if(type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase) is PropertyInfo prop)
                 return prop;
 
-            var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-
-            if (field != null)
-                return field;
+            if(type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase) is FieldInfo fieldInfo)
+                return fieldInfo;
 
             return null;
         }
@@ -448,7 +442,7 @@ namespace QueryMapper
             var whereCall = Expression.Call(whereMethod, sourceExpr, whereLambda);
 
             // Mapping ctorArgumentExp
-            var mapExpression = CreateMapExpression(sourceElementType, destElementType);
+            var mapExpression = GetMapExpression(sourceElementType, destElementType);
             var selectBody = Expression.Invoke(mapExpression, sourceElementParameter);
             var selectLambda = Expression.Lambda(selectBody, sourceElementParameter);
 
@@ -488,7 +482,7 @@ namespace QueryMapper
 
     }
 
-    internal class MapperConfiguration
+    internal sealed class MapperConfiguration
     {
         internal readonly Type SourceType;
         internal readonly Type DestinationType;
@@ -653,7 +647,39 @@ namespace QueryMapper
 
     internal record struct MapperMatching(string DestinationMember, Expression SourceExpr);
 
-    public class ParameterContainer
+
+    public sealed class ConfigurationBuilder
+    {
+        private readonly QueryMapper _mapper;
+
+        internal ConfigurationBuilder(QueryMapper mapper)
+        {
+            _mapper = mapper;
+        }
+
+        public ConfigurationBuilder Configure<TSource, TDestination>(Action<MapperConfiguration<TSource, TDestination>>? configuration = null)
+            where TSource : class
+            where TDestination : class
+        {
+            if (_mapper._configurations.Any(c => c.SourceType == typeof(TSource) && c.DestinationType == typeof(TDestination)))
+                throw new Exception($"Configuration for mapping from {typeof(TSource).Name} type to {typeof(TDestination).Name} is defined more than once. Check mapper code");
+
+            var config = new MapperConfiguration(typeof(TSource), typeof(TDestination));
+
+            using (var configTemp = new MapperConfiguration<TSource, TDestination>())
+            {
+                configuration?.Invoke(configTemp);
+                configTemp.Matchings.ForEach(config.Matchings.Add);
+                if (configTemp.CtorExpression != null)
+                    config.SetCtorExpression(configTemp.CtorExpression);
+                _mapper._configurations.Add(config);
+            }
+
+            return this;
+        }
+    }
+
+    public sealed class ParameterContainer
     {
         public ParameterContainer(params object[] expressions)
         {

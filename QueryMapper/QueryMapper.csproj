@@ -20,8 +20,8 @@
     <PackageId>EFQueryMapper</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
-    <Version>1.0.5</Version>
-    <PackageReleaseNotes>performance improvements</PackageReleaseNotes>
+    <Version>2.0.0</Version>
+    <PackageReleaseNotes>now it is possible to check mapping expressions between types. The mapper should use the parameterless constructor. It means mapper should have no dependency naturally</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
