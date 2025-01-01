@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 
 namespace QueryMapper.Examples.Core
@@ -10,15 +11,22 @@ namespace QueryMapper.Examples.Core
         {
             services
                 .AddQueryMapper<BookMapper>()
+                .AddAutoMapper()
                 .AddDbContext<BookContext>(builder => builder.UseSqlServer(connString))
-                .RegisterRepos()
+                .AddRepos()
                 ;
             return services;
         }
 
-        public static IServiceCollection RegisterRepos(this IServiceCollection services)
+        public static IServiceCollection AddRepos(this IServiceCollection services)
         {
             services.AddScoped<IBookRepository, BookRepository>();
+            return services;
+        }
+
+        public static IServiceCollection AddAutoMapper(this IServiceCollection services)
+        {
+            services.AddAutoMapper(typeof(BookAutoMapper)); // AutoMapper registration
             return services;
         }
     }

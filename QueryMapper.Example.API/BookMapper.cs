@@ -10,7 +10,7 @@ namespace QueryMapper.Examples.Core
             {
                 config
                 .Match(x => x.Firstname + " " + x.Lastname, dto => dto.Fullname)
-                .UsingPublicConstructor(x => new PersonDTO(x.Firstname, x.Lastname))
+                //.UsingPublicConstructor(x => new PersonDTO(x.Firstname, x.Lastname))
                 ;
             });
 
@@ -19,7 +19,7 @@ namespace QueryMapper.Examples.Core
                 config
                 .Match(x => x.Author.FirstName + " " + x.Author.LastName, y => y.AuthorName)
                 .Match(x => x.CreatedBy.FirstName + " " + x.CreatedBy.LastName, y => y.CreatedByName)
-                .UsingNonPublicConstructor(x => new ParameterContainer(x.AuthorId))
+                //.UsingNonPublicConstructor(x => new ParameterContainer(x.AuthorId))
                 ;
             });
 
